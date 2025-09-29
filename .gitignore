@@ -17,7 +17,6 @@ venv/
 ENV/
 
 # IDEs
-.vscode/
 .idea/
 
 # OS
