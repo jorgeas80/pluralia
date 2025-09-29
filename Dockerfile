@@ -11,5 +11,5 @@ RUN python -m pip install --no-cache-dir -r /tmp/requirements.txt
 COPY backend /app/backend
 
 EXPOSE 8000
-# Usa el $PORT de Railway si existe; si no, 8000
-CMD ["sh","-c","python -m uvicorn backend.app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+CMD ["python", "-m", "uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
