@@ -4,12 +4,12 @@ import feedparser
 router = APIRouter()
 
 FEEDS = {
-    "El País": "https://elpais.com/rss/elpais/portada.xml",
-    "ABC": "https://www.abc.es/rss/feeds/abcPortada.xml",
+    "El País": "https://feeds.elpais.com/mrss-s/pages/ep/site/elpais.com/portada",
+    "ABC": "https://www.abc.es/rss/2.0/espana/",
 }
 
 @router.get("/news")
-def get_news(limit: int = 5):
+def get_news(limit: int = 20):
     """
     Devuelve titulares recientes de varios medios.
     :param limit: número de noticias por medio (default=5)
