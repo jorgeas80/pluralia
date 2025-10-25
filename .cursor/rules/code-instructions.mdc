@@ -1,0 +1,1189 @@
+---
+alwaysApply: true
+---
+# Instructions to follow for code suggestions
+
+## Architecture & Design Principles
+
+Follow **Domain-Driven Design (DDD)** and **Clean Architecture** principles. Structure code in three distinct layers:
+
+1. **Domain Layer** - Core business logic, independent of external concerns
+2. **Application Layer** - Use case orchestration
+3. **Infrastructure Layer** - Technical implementations and external integrations
+
+## Project Structure
+
+Organize services following this structure:
+
+```
+src/
+├── domain/
+│   ├── entities/
+│   ├── value_objects/
+│   ├── repositories/
+│   ├── services/
+│   ├── events/
+│   └── errors/
+├── application/
+│   └── [use_case_name]/
+│       ├── [use_case_name].py
+│       ├── [use_case_name]_command.py
+│       └── [use_case_name]_response.py
+└── infrastructure/
+    ├── api/
+    ├── repositories/
+    ├── services/
+    └── daos/
+```
+
+## Domain Layer Guidelines
+
+### Entities
+
+- Use `@dataclass(frozen=True)` for immutability
+- Inherit from `Entity[TId]` or `AggregateRoot[TId]`
+- Always include `__post_init__` at the beginning for validation
+- Provide a `new()` classmethod for creating new entities (registers creation events for aggregates)
+- Provide a `build()` classmethod for reconstructing existing entities (no events)
+- Place business methods after `new()`/`build()` and before validation methods
+- Place all validation methods (prefixed with `_validate_`) at the end
+- Encapsulate domain business logic within entities
+- Never create anemic models (DTOs disguised as entities)
+
+**Example Structure:**
+
+```python
+@dataclass(frozen=True)
+class Player(Entity[UUID]):
+    name: str
+    id: UUID = field(default_factory=uuid4)
+    team_owner: UUID | None = field(default=None)
+
+    def __post_init__(self) -> None:
+        self._validate_id()
+        self._validate_name()
+
+    @classmethod
+    def new(cls, name: str, team_owner: UUID, id: UUID = uuid4()) -> "Player":
+        return cls(name=name, id=id, team_owner=team_owner)
+
+    @classmethod
+    def build(cls, name: str, team_owner: UUID, id: UUID) -> "Player":
+        return cls(name=name, id=id, team_owner=team_owner)
+
+    def is_free_agent(self) -> bool:
+        return self.team_owner is None
+
+    def hire(self, team: UUID) -> "Player":
+        if not self.is_free_agent():
+            raise InvalidDomainError("Player cannot be hired")
+        return self.clone(team_owner=team)
+
+    def _validate_id(self) -> None:
+        if not isinstance(self.id, UUID):
+            raise InvalidDomainError("Player id must be a UUID")
+
+    def _validate_name(self) -> None:
+        if not self.name or len(self.name) > 150:
+            raise InvalidDomainError("Player name must be between 1 and 150 characters")
+```
+
+### Value Objects
+
+- Use `@dataclass(frozen=True)` for immutability
+- Encapsulate validation logic in `__post_init__`
+- Use to represent domain concepts without unique identity
+- Extract complex validation or grouped attributes into Value Objects
+- Value Objects improve expressiveness and reusability
+
+**Example:**
+
+```python
+@dataclass(frozen=True)
+class EntityId:
+    value: UUID = field(default_factory=uuid4)
+
+    def __post_init__(self):
+        if not isinstance(self.value, UUID):
+            raise InvalidDomainError("Entity ID must be a valid UUID")
+```
+
+### Aggregates
+
+- Inherit from `AggregateRoot[TId]`
+- Define aggregate boundaries clearly
+- Register domain events using `register_event()`
+- Use `new()` for creation (registers creation event)
+- Use `build()` for reconstruction (no events)
+- Enforce invariants across all entities within the aggregate
+
+**Example:**
+
+```python
+@dataclass(frozen=True)
+class Team(AggregateRoot[UUID]):
+    id: UUID
+    name: str
+    players: list[Player] = field(default_factory=list)
+
+    @classmethod
+    def new(cls, name: str, id: UUID = uuid4()) -> "Team":
+        team = cls(name=name, id=id, players=[])
+        team.register_event(TeamCreated(entity=team))
+        return team
+
+    @classmethod
+    def build(cls, name: str, players: list[Player], id: UUID) -> "Team":
+        return cls(name=name, id=id, players=players)
+
+    def hire_player(self, player: Player) -> "Team":
+        if len(self.players) >= 20:
+            raise InvalidDomainError("Team can only have 20 players")
+        player.hire(team=self.id)
+        players = self.players + [player]
+        team = self.clone(players=players)
+        team.register_event(PlayerHired(entity=team))
+        return team
+```
+
+### Repositories (Abstractions)
+
+- Define abstractions in the domain layer
+- Extend `BaseRepository[TEntity, TId]`
+- Keep methods generic and database-agnostic
+- Never include domain logic
+- Use `save()` for both insert and update (upsert pattern)
+- Filter parameters should use domain model attributes, not database-specific fields
+
+**Example:**
+
+```python
+class TeamRepository(ABC, BaseRepository[Team, UUID]):
+    @abstractmethod
+    async def find_by_name(self, name: str) -> Team:
+        raise NotImplementedError()
+```
+
+### Domain Services
+
+- Create only when logic doesn't naturally fit in an entity/aggregate
+- Most domain services don't need abstractions unless they interact with external systems
+- Focus on operations spanning multiple aggregates
+- **NEVER use "Service" suffix** - use descriptive names like `Calculator`, `Validator`, `Processor`, `Reconciler`
+
+**Good Names:**
+
+- `TeamStatisticsCalculator`
+- `OrderValidator`
+- `PriceAdjuster`
+- `PaymentProcessor`
+
+**Bad Names:**
+
+- `TeamStatisticsService`
+- `OrderService`
+- `PriceService`
+- `PaymentService`
+
+### Domain Events
+
+- Use `@dataclass(frozen=True)` for immutability
+- Inherit from `DomainEvent`
+- Include all relevant information about the change
+- Provide a `new()` classmethod
+- Events are timestamped and self-contained
+
+**Example:**
+
+```python
+@dataclass(frozen=True)
+class DocumentCreated(DomainEvent):
+    @classmethod
+    def new(cls, entity: TextDocument, user_id: UUID | None) -> "DocumentCreated":
+        return DocumentCreated(
+            name="DocumentCreated",
+            domain="KnowledgeApi",
+            entity=entity,
+            payload={
+                "document_id": str(entity.id),
+                "collection_id": str(entity.collection_id),
+                "user_id": str(user_id) if user_id else None,
+            },
+        )
+```
+
+## Application Layer Guidelines
+
+### Application Services
+
+- One application service per use case
+- Inherit from `ApplicationService[TCommand, TResponse]`
+- Orchestrate domain operations without containing domain logic
+- Never place business rules here - delegate to domain entities
+- Return `None` for create/update/delete operations
+- Return `Response` only for read operations
+- Use dependency injection for repositories, event buses, and domain services
+
+**Example:**
+
+```python
+class CreateAgent(ApplicationService[CreateAgentCommand, AgentResponse]):
+    @inject.autoparams()
+    def __init__(
+            self,
+            repository: AssistantsRepository,
+            bot_service: BotService,
+            knowledge_service: KnowledgeService,
+    ) -> None:
+        self._repository = repository
+        self._bot_service = bot_service
+        self._knowledge_service = knowledge_service
+
+    async def execute(self, command: CreateAgentCommand) -> AgentResponse:
+        agent = Assistant.new(
+            brand_id=command.brand_id,
+            channel=command.channel,
+            flow_id=command.flow_id,
+        )
+        await self._repository.save(entity=agent)
+        return AgentResponse.build(agent=agent)
+```
+
+### Commands and Responses
+
+- Use `@dataclass(frozen=True, kw_only=True)` for Commands
+- Inherit from `Command` base class
+- Commands are input DTOs carrying data for use cases
+- Responses are output DTOs encapsulating results
+- Place in the same folder as the application service
+
+**Example:**
+
+```python
+@dataclass(frozen=True, kw_only=True)
+class CreateAgentCommand(Command):
+    brand_id: UUID
+    channel: str | None
+    flow_id: UUID | None
+    instructions: str | None
+    user_uuid: UUID
+```
+
+### Command/Query Handlers (CQRS)
+
+- Use CQRS only when necessary (complex read/write logic, scalability, event sourcing)
+- For most cases, application services are sufficient
+- Command handlers validate and dispatch to application services
+- Query handlers optimize read operations
+- Use CommandBus/QueryBus for dispatching
+
+## Infrastructure Layer Guidelines
+
+### API Controllers
+
+- Extend `BaseController` class
+- Use dependency injection in constructor
+- Centralize route registration in `_register_routes()`
+- Use FastAPI's `APIRouter`
+- Map HTTP requests to Commands/Queries
+- Handle HTTP concerns only (status codes, serialization)
+
+**Example:**
+
+```python
+class TeamController(BaseController):
+    def __init__(self, command_bus: CommandBus, query_bus: QueryBus):
+        self._router = router
+        self._register_routes()
+        self._command_bus = command_bus
+        self._query_bus = query_bus
+
+    def routes(self) -> APIRouter:
+        return self._router
+
+    def _register_routes(self) -> None:
+        self._router.add_api_route("", self.create_team, methods=["POST"])
+
+    async def create_team(self, request: CreateTeamRequest) -> Response:
+        command = CreateTeamCommand(name=request.name)
+        await self._command_bus.dispatch(command)
+        return to_response(status_code=status.HTTP_201_CREATED)
+```
+
+### Repository Implementations
+
+- Implement domain repository abstractions
+- Use parsers to convert between domain and database models
+- Implement `DatabaseParser` with `to_database_object()` and `to_domain_object()`
+- Capture framework-specific exceptions and raise domain exceptions
+- Use `upsert=True` for `save()` implementations
+
+**Example:**
+
+```python
+class MongoTeamRepository(TeamRepository):
+    def __init__(self, parser: MongoTeamParser, database: AgnosticDatabase):
+        self._parser = parser
+        self._collection = database.get_collection("teams")
+
+    async def save(self, entity: Team) -> None:
+        team_document = self._parser.to_database_object(entity)
+        self._collection.replace_one(
+            filter={"_id": team_document["_id"]},
+            replacement=team_document,
+            upsert=True
+        )
+```
+
+### Infrastructure Services
+
+- Implement technical capabilities (authentication, monitoring, external APIs)
+- Define abstraction in domain layer, implementation in infrastructure layer
+- **NEVER use "Service" suffix** - use descriptive names
+- Use Anticorruption Layer pattern for external APIs
+- Map external data to domain models
+
+**Good Names:**
+
+- `JwtAccessTokenVerifier`
+- `SmtpEmailSender`
+- `DatadogMetricsCollector`
+- `Auth0UserAuthenticator`
+
+**Bad Names:**
+
+- `TokenService`
+- `EmailService`
+- `MetricsService`
+- `AuthService`
+
+### Event Bus
+
+- Use `EventBus` for publishing domain events
+- Use `EventSubscriber` for consuming events
+- Convert domain events to integration events for cross-service communication
+- Use PubSub or similar message broker
+
+## Code Style & Best Practices
+
+### Python Type Hints
+
+- Always use type hints for function parameters and return types
+- Use `|` for union types (Python 3.10+): `str | None`
+- Use generic types from `typing` module when needed
+- Be explicit about collections: `list[Player]`, `dict[str, Any]`
+
+### Dataclasses
+
+- Use `@dataclass(frozen=True)` for immutable domain objects
+- Use `@dataclass(frozen=True, kw_only=True)` for Commands/DTOs
+- Use `field()` for default values, factories, and metadata
+- Leverage `__post_init__` for validation
+
+### Error Handling
+
+- Create custom domain exceptions (e.g., `InvalidDomainError`, `TeamNotFoundError`)
+- Use error codes for categorization
+- Raise domain exceptions, not framework exceptions
+- Capture infrastructure exceptions and translate to domain exceptions
+
+### Naming Conventions
+
+- Use descriptive, intention-revealing names
+- Classes: PascalCase (`TeamRepository`, `CreateAgent`)
+- Functions/methods: snake_case (`find_by_id`, `hire_player`)
+- Constants: UPPER_SNAKE_CASE (`MAX_PLAYERS`, `DEFAULT_WELCOME_MESSAGE`)
+- Private methods: prefix with `_` (`_validate_name`, `_map_to_team`)
+- Avoid generic suffixes like "Service", "Manager", "Helper"
+
+### Async/Await
+
+- Use `async`/`await` for I/O operations (database, HTTP, event publishing)
+- Application services should be async
+- Repository methods should be async
+- Keep domain logic synchronous unless absolutely necessary
+
+### Dependency Injection
+
+- Use `inject.autoparams()` decorator for automatic dependency injection
+- Inject abstractions, not concrete implementations
+- Configure dependencies in a container/module
+- Follow Dependency Inversion Principle
+
+### File Organization
+
+- One class per file
+- File name matches class name in snake_case
+- Group related use cases in folders
+- Keep domain, application, and infrastructure layers separate
+
+## Testing Patterns
+
+- Write unit tests for domain logic
+- Write integration tests for application services
+- Mock infrastructure dependencies
+- Test aggregate invariants
+- Test event generation
+
+## Common Patterns to Follow
+
+### Reference Services
+
+- `services/assistants` - Well-structured DDD service with clear separation
+- `services/knowledge-api` - Event-driven architecture example
+
+### Imports
+
+- Use absolute imports from `src/`
+- Import from `landbot_core` for shared abstractions
+- Group imports: stdlib, third-party, local
+
+### Documentation
+
+- Add docstrings for complex domain logic
+- Document business rules in entity methods
+- Keep comments focused on "why", not "what"
+
+## Testing Guidelines
+
+### Test Structure
+
+Organize tests to mirror the source code structure:
+
+```
+tests/
+├── __init__.py
+├── conftest.py              # Global fixtures and configuration
+├── factories/               # Test data factories
+│   ├── entity_factory.py
+│   └── value_object_factory.py
+├── mocks/                   # Fake implementations
+│   ├── fake_service.py
+│   └── fake_repository.py
+├── unit/                    # Fast, isolated tests
+│   ├── domain/
+│   │   ├── entities/
+│   │   ├── value_objects/
+│   │   └── services/
+│   ├── application/
+│   │   └── conftest.py      # Application-level fixtures
+│   └── infrastructure/
+└── integration/             # Tests with real dependencies
+    ├── conftest.py          # Integration-level fixtures
+    ├── infrastructure/
+    └── api/
+```
+
+### Unit Tests
+
+**Purpose:** Test business logic in isolation without external dependencies.
+
+**Guidelines:**
+
+- Test domain entities, value objects, aggregates, and domain services
+- Test application services with mocked dependencies
+- Use mocks for repositories, external services, and infrastructure
+- Focus on behavior, not implementation details
+- Test edge cases, validation, and error handling
+- Each test should be independent and fast
+- **Do not add comments inside tests** - Test names should be self-explanatory and describe what is being tested
+
+**Naming Convention:**
+
+```python
+# Pattern: test_given_<precondition>_when_<action>_then_<expected_result>
+def test_given_no_channels_when_create_builderless_agent_then_it_fails():
+    pass
+
+
+# For simpler cases: test_<what_is_being_tested>
+def test_new_creates_agent_with_defaults():
+    pass
+
+
+# For parametrized tests
+@pytest.mark.parametrize("value, expected", [...])
+def test_crawl_url_normalizes_format(value, expected):
+    pass
+```
+
+**Domain Entity Tests:**
+
+```python
+def test_new_agent_web(faker):
+    channel = "web"
+    brand_id = faker.uuid4(cast_to=None)
+
+    new_agent = Assistant.new(
+        brand_id=brand_id,
+        channel=channel,
+        flow_id=None,
+        instructions=None,
+    )
+
+    assert isinstance(new_agent.id, UUID)
+    assert new_agent.brand.id == brand_id
+    assert len(new_agent.channels) == 1
+
+
+def test_build_agent(faker):
+    agent_id = faker.uuid4(cast_to=None)
+    brand_id = faker.uuid4(cast_to=None)
+
+    agent = Assistant.build(id=agent_id, brand_id=brand_id, channels=[])
+
+    assert agent.id == agent_id
+    assert len(agent.events) == 0
+
+
+def test_hire_player_updates_team(faker):
+    team = TeamFactory.build()
+    player = PlayerFactory.build(team_owner=None)
+
+    updated_team = team.hire_player(player)
+
+    assert len(updated_team.players) == len(team.players) + 1
+    assert player in updated_team.players
+
+
+@pytest.mark.parametrize("id", [None, "", " ", 123])
+def test_subscription_invalid_id(id: str):
+    with pytest.raises(InvalidDomainError, match=r"Subscription ID.*"):
+        Subscription(active=True, id=id, plan=Plan.business())
+
+
+def test_cancel_subscription_returns_new_instance(faker):
+    subscription = SubscriptionFactory.build(active=True)
+
+    inactive_subscription = subscription.cancel()
+
+    assert not inactive_subscription.active
+    assert subscription.active
+```
+
+**Value Object Tests:**
+
+```python
+def test_crawl_url_normalizes_domain():
+    crawl_url = CrawlURL(value="www.google.com")
+
+    assert str(crawl_url) == "https://www.google.com"
+
+
+def test_crawl_url_validation_fails_for_invalid():
+    with pytest.raises(InvalidDomainError):
+        CrawlURL(value="invalid url")
+
+
+@pytest.mark.parametrize(
+    "url, expected",
+    [
+        ["www.google.com", "https://www.google.com"],
+        ["https://www.google.com", "https://www.google.com"],
+        ["http://www.google.com", "http://www.google.com"],
+    ],
+)
+def test_crawl_url_handles_various_formats(url, expected):
+    crawl_url = CrawlURL(value=url)
+    assert str(crawl_url) == expected
+```
+
+**Application Service Tests:**
+
+```python
+@pytest.fixture
+def create_agent(mock_agent_repository, mock_bot_service, mock_knowledge_service):
+    return CreateAgent(
+        repository=mock_agent_repository,
+        bot_service=mock_bot_service,
+        knowledge_service=mock_knowledge_service,
+    )
+
+
+async def test_create_agent_builderless(
+        create_agent, faker, mock_agent_repository, mock_bot_service, mock_knowledge_service
+):
+    bot = BotFactory.build(token=faker.uuid4(), url=faker.url())
+    mock_bot_service.create_bot = AsyncMock(return_value=bot)
+    create_agent_command = CreateAgentCommandFactory.build(is_builder_block=False)
+
+    response = await create_agent.execute(create_agent_command)
+
+    # Assert response structure
+    assert isinstance(response, AgentResponse)
+    assert response.id is not None
+    assert response.save_status == SaveStatus.PUBLISHED
+
+    # Verify collaborator interactions
+    mock_bot_service.create_bot.assert_awaited_once_with(
+        agent=agent, channel=agent.channels[0], user_uuid=create_agent_command.user_uuid
+    )
+    mock_knowledge_service.create_knowledge.assert_awaited_once_with(
+        assistant_id=agent.id, brand_id=agent.brand.id
+    )
+    mock_agent_repository.save.assert_awaited_once_with(entity=updated_agent)
+```
+
+**Domain Service Tests:**
+
+```python
+async def test_sync_will_create_customer_if_not_exists(
+        mock_customer_repository, mock_chargebee_service, mock_logger
+):
+    customer_sync_service = CustomerSyncer(
+        chargebee_service=mock_chargebee_service, logger=mock_logger
+    )
+    mock_chargebee_service.get_customer.return_value = None
+    customer_id = 1234
+
+    await customer_sync_service.sync(customer_id=customer_id, company="Company", email="email")
+
+    mock_chargebee_service.get_customer.assert_called_once_with(customer_id)
+    mock_chargebee_service.create_customer.assert_called_once_with(
+        id=customer_id, name="Company", email="email"
+    )
+    mock_logger.info.assert_called_once()
+
+
+async def test_sync_will_not_create_customer_if_exists(
+        mock_customer_repository, mock_chargebee_service, mock_logger
+):
+    customer_sync_service = CustomerSyncer(
+        chargebee_service=mock_chargebee_service, logger=mock_logger
+    )
+    mock_chargebee_service.get_customer.return_value = CustomerFactory.build()
+
+    await customer_sync_service.sync(customer_id=1234, company="Company", email="email")
+
+    mock_chargebee_service.create_customer.assert_not_called()
+```
+
+### Integration Tests
+
+**Purpose:** Test interactions between components with real or near-real dependencies.
+
+**Guidelines:**
+
+- Test API endpoints end-to-end
+- Test repository implementations with real databases (or in-memory alternatives)
+- Use test databases/collections that are cleaned between tests
+- Mock only external services (third-party APIs, payment gateways)
+- Verify complete workflows
+- Test authentication and authorization
+
+**API Endpoint Tests:**
+
+```python
+async def test_start_new_subscription(client, customer_repository, mock_chargebee_service):
+    # Arrange: create test data
+    customer = CustomerFactory.build(subscription=None)
+    await customer_repository.save(customer)
+    mock_chargebee_service.create_subscription = AsyncMock(
+        return_value=SubscriptionOperationResult.SUCCESS
+    )
+
+    # Act: make HTTP request
+    response = client.post(
+        f"/v1/customers/{customer.id}/subscriptions",
+        json={
+            "billing_cycle": "Monthly",
+            "currency": "USD",
+            "seats": 10,
+            "subscription_id": customer.id,
+            "plan_id": "Professional",
+            "whatsapp_numbers": 0,
+        },
+    )
+
+    # Assert: verify response
+    assert response.status_code == status.HTTP_204_NO_CONTENT
+
+
+async def test_start_new_subscription_payment_declined(
+        client, customer_repository, mock_chargebee_service
+):
+    customer = CustomerFactory.build(subscription=None)
+    await customer_repository.save(customer)
+    mock_chargebee_service.create_subscription = AsyncMock(
+        return_value=SubscriptionOperationResult.PAYMENT_DECLINED
+    )
+
+    response = client.post(
+        f"/v1/customers/{customer.id}/subscriptions",
+        json={...},
+    )
+
+    assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+    assert response.json()["data"]["code"] == "payment_declined"
+```
+
+### Test Fixtures
+
+**Purpose:** Fixtures provide reusable test dependencies and setup logic.
+
+**Guidelines:**
+
+- **Move fixtures to `conftest.py` when used in multiple test files** - This promotes reusability and reduces
+  duplication
+- Place global fixtures in the root `tests/conftest.py`
+- Place domain/module-specific fixtures in local `conftest.py` files (e.g., `tests/unit/application/conftest.py`)
+- Use descriptive names prefixed with `mock_` for mock fixtures
+- Use `@pytest.fixture` for synchronous fixtures
+- Use `@pytest_asyncio.fixture` for asynchronous fixtures
+- Leverage pytest's fixture scoping (`function`, `class`, `module`, `session`) when appropriate
+
+**Global Fixtures (`conftest.py`):**
+
+```python
+import pytest
+import pytest_asyncio
+from unittest.mock import AsyncMock, Mock
+
+
+# Simple fixtures
+@pytest.fixture
+def settings():
+    return Settings(
+        mongo_db_name="test_db",
+        api_version="test",
+    )
+
+
+# Async fixtures
+@pytest_asyncio.fixture
+async def mongo_client() -> AsyncGenerator:
+    try:
+        client = FakeMongoClient()
+        collection = client.get_database("test_db").get_collection("test_collection")
+        await collection.drop()
+
+        yield client
+
+        await collection.drop()
+    except ConnectionError as e:
+        logging.error(e)
+
+
+# Mock fixtures
+@pytest.fixture
+def mock_document_repository():
+    return AsyncMock(spec=DocumentRepository)
+
+
+@pytest.fixture
+def mock_event_bus():
+    return AsyncMock(spec=EventBus)
+
+
+# Data fixtures using faker
+@pytest.fixture
+def brand_uuid(faker) -> UUID:
+    return faker.uuid4(cast_to=None)
+```
+
+**Application-Level Fixtures (`tests/unit/application/conftest.py`):**
+
+```python
+@pytest.fixture
+def mock_agent_repository():
+    return AsyncMock(spec=AssistantsRepository)
+
+
+@pytest.fixture
+def mock_bot_service():
+    return AsyncMock(spec=BotService)
+
+
+@pytest.fixture
+def mock_knowledge_service():
+    mock = Mock(spec=KnowledgeService)
+    mock.create_knowledge = AsyncMock(return_value=KnowledgeFactory.build())
+    return mock
+```
+
+**Integration Fixtures (`tests/integration/conftest.py`):**
+
+```python
+@pytest.fixture
+def client(customer_repository, mock_chargebee_service):
+    settings = Settings(api_version="test", google_pubsub_project_id="pub-sub-emulator")
+
+    def override_config(binder) -> None:
+        config(binder)
+        binder.bind(Settings, settings)
+        binder.bind(CustomerRepository, customer_repository)
+        binder.bind(ChargebeeService, mock_chargebee_service)
+
+    inject.clear_and_configure(override_config, allow_override=True)
+
+    app = configure_app()
+    app.dependency_overrides[get_settings] = lambda: settings
+
+    return TestClient(app)
+
+
+def get_bearer_auth(brand_uuid: UUID) -> str:
+    return "Bearer " + jwt.encode(
+        {
+            "aud": "service_name",
+            "iss": "daisho",
+            "brand_uuid": str(brand_uuid),
+        },
+        settings.jwt_key,
+        algorithm="HS256",
+    )
+```
+
+### Test Factories
+
+**Purpose:** Create test data easily and consistently using the Factory pattern.
+
+**Guidelines:**
+
+- Use `factory` library (Factory Boy)
+- Create factories for all entities and value objects
+- Use `Faker` for generating random data
+- Use `SubFactory` for nested objects
+- Place in `tests/factories/` directory
+- Factories should produce valid domain objects
+
+**Entity Factory:**
+
+```python
+from factory import Factory, Faker, List, SubFactory
+
+
+class AssistantFactory(Factory):
+    class Meta:
+        model = Assistant
+
+    id = Faker("uuid4", cast_to=None)
+    brand = SubFactory(BrandFactory)
+    channels = List([SubFactory(ChannelFactory)])
+    context = Faker("pystr", min_chars=10, max_chars=5000)
+    exit_conditions = List([SubFactory(ExitConditionFactory)])
+    flow = SubFactory(FlowFactory)
+    instructions = SubFactory(InstructionsFactory)
+    is_faq = False
+    knowledge = SubFactory(KnowledgeFactory)
+    save_status = Faker("random_element", elements=SaveStatus)
+    user_fields = List([SubFactory(UserFieldFactory)])
+    error_message = Faker("sentence")
+    welcome_message = Faker("pystr", min_chars=10, max_chars=500)
+
+
+# Usage in tests
+agent = AssistantFactory.build()
+agent_with_overrides = AssistantFactory.build(is_faq=True, context="Custom context")
+```
+
+**Simple Factory:**
+
+```python
+class CustomerFactory(Factory):
+    class Meta:
+        model = Customer
+
+    id = Faker("pyint", min_value=1000, max_value=2000)
+    subscription = SubFactory(SubscriptionFactory)
+    payment_sources = List([SubFactory(PaymentSourceFactory)])
+```
+
+**Command Factory:**
+
+```python
+class CreateAgentCommandFactory(Factory):
+    class Meta:
+        model = CreateAgentCommand
+
+    brand_id = Faker("uuid4", cast_to=None)
+    channel = "web"
+    flow_id = None
+    instructions = None
+    user_uuid = Faker("uuid4", cast_to=None)
+```
+
+### Mocks and Fakes
+
+**When to Use:**
+
+- **Mock:** Use `AsyncMock` or `Mock` for simple behavior verification in unit tests
+- **Fake:** Create fake implementations for complex dependencies used across multiple tests
+
+**Fake Implementation Example:**
+
+```python
+# tests/mocks/fake_knowledge_service.py
+import uuid
+from uuid import UUID
+from src.domain.services import KnowledgeService
+from src.domain.value_objects import Knowledge
+
+
+class FakeKnowledgeService(KnowledgeService):
+    async def create_knowledge(
+            self, assistant_id: UUID, brand_id: UUID, description: str | None = None
+    ) -> Knowledge:
+        return Knowledge(
+            repository_id=uuid.uuid4(),
+            collection_id=uuid.uuid4(),
+            document_id=uuid.uuid4(),
+        )
+```
+
+**Mock Usage:**
+
+```python
+# In tests
+mock_service = AsyncMock(spec=BotService)
+mock_service.create_bot.return_value = BotFactory.build()
+
+# Assertions
+mock_service.create_bot.assert_awaited_once_with(agent=agent, channel=channel)
+mock_service.update_bot.assert_not_called()
+```
+
+### Testing Best Practices
+
+**AAA Pattern (Arrange-Act-Assert):**
+
+Structure all tests following the AAA pattern for clarity and consistency:
+
+```python
+def test_hire_player_updates_team():
+    # Arrange - Set up test data and preconditions
+    team = TeamFactory.build()
+    player = PlayerFactory.build(team_owner=None)
+
+    # Act - Execute the behavior being tested
+    updated_team = team.hire_player(player)
+
+    # Assert - Verify the expected outcome
+    assert len(updated_team.players) == len(team.players) + 1
+    assert player in updated_team.players
+```
+
+**Note:** Do not add inline comments (`# Arrange`, `# Act`, `# Assert`) in actual tests. The pattern should be implicit
+through visual spacing.
+
+**Descriptive Test Names:**
+
+Test names must clearly describe what is being tested without needing to read the implementation:
+
+```python
+# ✅ Good - Describes the complete scenario
+def test_given_no_channels_when_create_builderless_agent_then_it_fails()
+def test_cancel_subscription_returns_new_instance()
+def test_new_agent_web_creates_pending_channel()
+
+# ❌ Bad - Vague or unclear
+def test_agent()
+def test_cancel()
+def test_creation()
+```
+
+**Naming Conventions:**
+
+- **Complex scenarios:** `test_given_<precondition>_when_<action>_then_<expected_result>`
+- **Simple cases:** `test_<what_is_being_tested>`
+- **Multiple similar cases:** Use `@pytest.mark.parametrize` with descriptive test name
+
+**DO:**
+
+✅ Follow AAA pattern with visual spacing (blank lines between sections)
+✅ Use descriptive test names that explain the scenario
+✅ Test one behavior per test function
+✅ Use factories for creating test data
+✅ Mock external dependencies (APIs, databases in unit tests)
+✅ Test edge cases and error scenarios
+✅ Use parametrized tests for similar scenarios with different inputs
+✅ Clean up test data after integration tests
+✅ Test domain invariants and business rules thoroughly
+✅ Verify mock interactions in application service tests
+✅ Test immutability of domain objects
+✅ Use `faker` for generating realistic random test data
+✅ Move shared fixtures to `conftest.py`
+✅ Keep tests independent (no shared state between tests)
+✅ Use `spec` parameter when creating mocks
+
+**DON'T:**
+
+❌ Add inline comments inside tests (test names should be self-documenting)
+❌ Test implementation details instead of behavior
+❌ Create interdependent tests that must run in order
+❌ Use real external services in unit tests
+❌ Hardcode UUIDs, timestamps, or other generated values
+❌ Mock domain entities (use factories instead)
+❌ Skip testing validation logic
+❌ Create complex test setup (use factories and fixtures)
+❌ Test framework code (e.g., FastAPI routing internals)
+❌ Use `sleep()` or `wait()` in tests
+❌ Write assertions that test multiple unrelated behaviors
+❌ Use production data or configurations in tests
+
+**Async Testing:**
+
+```python
+# Use pytest-asyncio for async tests
+import pytest
+
+
+@pytest.mark.asyncio
+async def test_async_operation():
+    result = await some_async_function()
+    assert result is not None
+
+
+# Or configure asyncio_mode = auto in pytest.ini
+async def test_async_operation_auto():
+    result = await some_async_function()
+    assert result is not None
+```
+
+**Testing Exceptions:**
+
+```python
+# Test that exception is raised with message pattern
+with pytest.raises(InvalidDomainError, match=r"Player id must be a UUID"):
+    Player(id="not-a-uuid", name="John")
+
+# Test exception details
+with pytest.raises(ResourceNotFound) as exc_info:
+    await document_obtainer.obtain(document_id=non_existent_id)
+
+assert exc_info.value.message == f"Document with ID {non_existent_id} does not exist."
+assert exc_info.value.code == ErrorCode.not_found
+```
+
+**Testing Events:**
+
+```python
+def test_new_aggregate_registers_creation_event():
+    team = Team.new(name="FC Barcelona")
+
+    assert len(team.events) == 1
+    assert isinstance(team.events[0], TeamCreated)
+    assert team.events[0].entity == team
+
+
+def test_build_aggregate_does_not_register_events():
+    team = Team.build(id=uuid4(), name="FC Barcelona", players=[])
+
+    assert len(team.events) == 0
+```
+
+### Pytest Configuration
+
+**pytest.ini or setup.cfg:**
+
+```ini
+[tool:pytest]
+testpaths = tests
+python_files = test_*.py
+python_classes = Test*
+python_functions = test_*
+asyncio_mode = auto
+markers =
+    unit: Unit tests
+    integration: Integration tests
+    slow: Slow tests
+```
+
+**Running Tests:**
+
+```bash
+# Run all tests
+pytest
+
+# Run only unit tests
+pytest tests/unit
+
+# Run only integration tests
+pytest tests/integration
+
+# Run with coverage
+pytest --cov=src --cov-report=html
+
+# Run specific test file
+pytest tests/unit/domain/entities/test_subscription.py
+
+# Run specific test
+pytest tests/unit/domain/entities/test_subscription.py::test_new
+
+# Run tests matching pattern
+pytest -k "test_create"
+
+# Run with verbose output
+pytest -v
+
+# Run failed tests from last run
+pytest --lf
+```
+
+## Anti-Patterns to Avoid
+
+❌ **Anemic Domain Models** - Entities that only have getters/setters
+❌ **Domain Logic in Application Services** - Business rules outside entities
+❌ **Domain Logic in Repositories** - Repositories should only handle persistence
+❌ **Leaking Infrastructure to Domain** - Domain shouldn't depend on frameworks
+❌ **Generic "Service" Suffix** - Use descriptive names instead
+❌ **Separate Insert/Update Methods** - Use `save()` for upsert pattern
+❌ **Database Models as Domain Models** - Always use parsers to separate concerns
+❌ **Framework Exceptions in Domain** - Translate to domain exceptions
+❌ **Testing Implementation Details** - Focus on behavior
+❌ **Mocking Domain Entities in Tests** - Use factories instead
+
+## When to Use What
+
+**Create an Entity when:**
+
+- The object has a unique identity
+- Its lifecycle matters
+- It contains business logic
+
+**Create a Value Object when:**
+
+- The object has no unique identity
+- You need to encapsulate validation
+- You want to group related attributes
+
+**Create an Aggregate when:**
+
+- You need to enforce invariants across multiple entities
+- You need to coordinate changes across related entities
+
+**Create a Domain Service when:**
+
+- Logic spans multiple aggregates
+- Logic doesn't naturally belong to any entity
+
+**Create an Infrastructure Service when:**
+
+- You need external dependencies (JWT, SMTP, external APIs)
+- You need framework-specific functionality
+
+**Use CQRS when:**
+
+- Read and write models are significantly different
+- You need independent scaling
+- You're using event sourcing
+
+**Write Unit Tests when:**
+
+- Testing domain logic (entities, value objects, aggregates)
+- Testing application services with mocked dependencies
+- Testing domain services
+- Testing business rules and validation
+
+**Write Integration Tests when:**
+
+- Testing API endpoints
+- Testing repository implementations
+- Testing complete workflows
+- Testing authentication/authorization
+- Testing with real databases
+
+---
+
+**Remember:** Keep the domain pure, orchestrate in the application layer, isolate technical concerns in the
+infrastructure layer, and test all layers thoroughly with appropriate testing strategies.
