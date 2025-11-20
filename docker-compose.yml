@@ -1,17 +1,36 @@
 version: "3.9"
 services:
   pluralia-api:
-    build: .
+    build:
+      context: .
+      dockerfile: services/api/Dockerfile
     container_name: pluralia-api
     ports:
       - "8000:8000"
     volumes:
-      - ./api:/app/api
+      - ./services/api:/app/services/api
+      - ./libs:/app/libs
     environment:
       - PYTHONUNBUFFERED=1
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/pluralia
     depends_on:
       - db
+    restart: unless-stopped
+
+  pluralia-ingest:
+    build:
+      context: .
+      dockerfile: services/ingest/Dockerfile
+    container_name: pluralia-ingest
+    volumes:
+      - ./services/ingest:/app/services/ingest
+      - ./libs:/app/libs
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/pluralia
+    depends_on:
+      - db
+    restart: unless-stopped
 
   db:
     image: postgres:15

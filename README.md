@@ -10,10 +10,18 @@
 - **API REST**: Endpoints para consultar noticias y métricas
 - **Base de datos PostgreSQL**: Almacenamiento persistente de artículos y fuentes
 - **Docker**: Contenedorización completa para desarrollo y producción
+- **Arquitectura Monorepo**: Servicios separados siguiendo Domain-Driven Design
 
 ## 🏗️ Arquitectura
 
-El proyecto está estructurado con:
+El proyecto está estructurado como un **monorepo** siguiendo principios de **Domain-Driven Design (DDD)** y **Clean Architecture**:
+
+- **libs/domain**: Código compartido del dominio (entidades, value objects, repositorios)
+- **services/api**: Servicio de API REST (FastAPI)
+- **services/ingest**: Servicio de ingesta de noticias desde feeds RSS
+- **services/web**: Frontend web (pendiente de implementación)
+
+### Tecnologías
 
 - **FastAPI**: Framework web moderno y rápido para Python
 - **SQLModel**: ORM que combina SQLAlchemy con Pydantic
@@ -25,17 +33,38 @@ El proyecto está estructurado con:
 
 ```
 pluralia/
-├── api/
-│   └── app/
-│       ├── main.py          # Aplicación FastAPI principal
-│       ├── routes.py        # Endpoints de la API
-│       ├── models.py        # Modelos de datos (SQLModel)
-│       ├── db.py           # Configuración de base de datos
-│       ├── ingest.py       # Script de ingesta de noticias
-│       └── rss.py          # Utilidades RSS (vacío)
-├── docker-compose.yml      # Orquestación de servicios
-├── Dockerfile             # Imagen de la aplicación
-└── README.md              # Este archivo
+├── libs/
+│   └── domain/                    # Código compartido del dominio
+│       ├── entities/              # Entidades de dominio (Source, Article, NewsGroup)
+│       ├── value_objects/         # Value Objects (Bias, TopicHash)
+│       ├── repositories/          # Interfaces de repositorios
+│       └── errors/                # Excepciones de dominio
+├── services/
+│   ├── api/                       # Servicio API REST
+│   │   ├── src/
+│   │   │   ├── domain/            # Lógica de dominio específica del API
+│   │   │   ├── application/       # Casos de uso
+│   │   │   └── infrastructure/    # Implementaciones técnicas
+│   │   │       ├── api/           # Controladores/rutas FastAPI
+│   │   │       ├── repositories/  # Implementaciones de repositorios
+│   │   │       └── database/      # Modelos SQLModel y configuración BD
+│   │   ├── Dockerfile
+│   │   └── requirements.txt
+│   ├── ingest/                    # Servicio de ingesta
+│   │   ├── src/
+│   │   │   ├── domain/
+│   │   │   ├── application/       # Casos de uso de ingesta
+│   │   │   └── infrastructure/
+│   │   │       ├── repositories/
+│   │   │       ├── services/      # Servicios técnicos (RSS parser)
+│   │   │       └── database/
+│   │   ├── Dockerfile
+│   │   └── requirements.txt
+│   └── web/                       # Frontend (pendiente)
+│       └── src/
+├── docker-compose.yml             # Orquestación de todos los servicios
+├── setup.py                       # Configuración para imports de libs
+└── README.md                      # Este archivo
 ```
 
 ## 🚀 Instalación y Desarrollo Local
@@ -70,7 +99,7 @@ pluralia/
 
 4. **Ejecuta la ingesta inicial de noticias**:
    ```bash
-   docker-compose exec pluralia-api python -m api.app.ingest
+   docker-compose exec pluralia-ingest python -m services.ingest.src.main
    ```
 
 5. **Accede a la documentación de la API**:
@@ -81,7 +110,12 @@ pluralia/
 
 1. **Instala las dependencias**:
    ```bash
-   cd api
+   # Instalar dependencias del API
+   cd services/api
+   pip install -r requirements.txt
+   
+   # Instalar dependencias del ingest
+   cd ../ingest
    pip install -r requirements.txt
    ```
 
@@ -91,17 +125,19 @@ pluralia/
    - Configura las variables de entorno:
      ```bash
      export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/pluralia"
+     export PYTHONPATH="${PYTHONPATH}:$(pwd)"
      ```
 
-3. **Ejecuta la aplicación**:
+3. **Ejecuta la aplicación API**:
    ```bash
-   cd api
-   uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+   cd services/api
+   uvicorn services.api.src.main:app --reload --host 0.0.0.0 --port 8000
    ```
 
 4. **Ejecuta la ingesta**:
    ```bash
-   python -m app.ingest
+   cd services/ingest
+   python -m services.ingest.src.main
    ```
 
 ## 📊 Endpoints de la API
@@ -127,10 +163,13 @@ Obtiene noticias recientes de múltiples fuentes.
 {
   "news": [
     {
+      "id": "uuid",
       "title": "Título de la noticia",
       "link": "https://ejemplo.com/noticia",
-      "published": "Mon, 01 Jan 2024 12:00:00 GMT",
-      "source": "El País"
+      "description": "Descripción de la noticia",
+      "published": "2024-01-01T12:00:00",
+      "source": "El País",
+      "bias": "left"
     }
   ]
 }
@@ -141,20 +180,24 @@ Obtiene noticias recientes de múltiples fuentes.
 ### Docker Compose
 
 ```bash
-# Levantar servicios
+# Levantar todos los servicios
 docker-compose up -d
 
-# Ver logs
+# Ver logs de todos los servicios
 docker-compose logs -f
+
+# Ver logs de un servicio específico
+docker-compose logs -f pluralia-api
+docker-compose logs -f pluralia-ingest
 
 # Parar servicios
 docker-compose down
 
-# Reconstruir imagen
+# Reconstruir imágenes
 docker-compose build --no-cache
 
-# Ejecutar comando en el contenedor
-docker-compose exec pluralia-api <comando>
+# Ejecutar ingesta manualmente
+docker-compose exec pluralia-ingest python -m services.ingest.src.main
 
 # Acceder a la base de datos
 docker-compose exec db psql -U postgres -d pluralia
@@ -164,16 +207,16 @@ docker-compose exec db psql -U postgres -d pluralia
 
 ```bash
 # Ejecutar ingesta de noticias
-python -m api.app.ingest
+python -m services.ingest.src.main
 
 # Ejecutar tests (cuando estén implementados)
 pytest
 
 # Formatear código
-black api/
+black services/ libs/
 
 # Linting
-flake8 api/
+flake8 services/ libs/
 ```
 
 ## 🗄️ Base de Datos
@@ -190,11 +233,20 @@ La base de datos se inicializa automáticamente al ejecutar la aplicación por p
 
 ## 🔄 Flujo de Datos
 
-1. **Ingesta**: El script `ingest.py` parsea feeds RSS de múltiples fuentes
-2. **Clasificación**: Cada fuente tiene un sesgo político asignado
-3. **Agrupación**: Los artículos se agrupan por similitud de título usando hash
+1. **Ingesta**: El servicio `ingest` parsea feeds RSS de múltiples fuentes
+2. **Clasificación**: Cada fuente tiene un sesgo político asignado (left, center, right)
+3. **Agrupación**: Los artículos se agrupan por similitud de título usando hash SHA256
 4. **Almacenamiento**: Los datos se guardan en PostgreSQL
-5. **API**: Los endpoints exponen los datos para consumo
+5. **API**: El servicio `api` expone los datos para consumo a través de endpoints REST
+
+## 🏛️ Arquitectura del Dominio
+
+El proyecto sigue **Domain-Driven Design (DDD)**:
+
+- **Entidades**: `Source`, `Article`, `NewsGroup` - Objetos con identidad única
+- **Value Objects**: `Bias`, `TopicHash` - Objetos inmutables sin identidad
+- **Repositorios**: Interfaces en el dominio, implementaciones en infraestructura
+- **Casos de Uso**: Lógica de aplicación orquestando operaciones de dominio
 
 ## 🛠️ Tecnologías Utilizadas
 
@@ -209,9 +261,10 @@ La base de datos se inicializa automáticamente al ejecutar la aplicación por p
 ## 📝 Notas de Desarrollo
 
 - El proyecto usa **SQLModel** que combina SQLAlchemy con Pydantic
-- Los feeds RSS se actualizan manualmente ejecutando el script de ingesta
+- Los feeds RSS se actualizan ejecutando el servicio de ingesta
 - La agrupación de noticias usa hashing SHA256 de los títulos normalizados
-- El proyecto está preparado para escalar con más fuentes y funcionalidades
+- El código del dominio está en `libs/domain` y es compartido entre servicios
+- Cada servicio tiene su propia implementación de repositorios en la capa de infraestructura
 
 ## 🤝 Contribución
 
