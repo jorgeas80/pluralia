@@ -1,0 +1,6 @@
+[tool.setuptools]
+packages = ["libs"]
+
+[tool.setuptools.package-dir]
+"" = "."
+

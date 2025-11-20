@@ -1,115 +1,151 @@
 # Pluralia 📰
 
-**Pluralia** es una API de agregación de noticias que recopila información de múltiples fuentes de medios españoles, clasificándolas por sesgo político y agrupándolas por temas para proporcionar una visión plural de la actualidad.
+**Pluralia** is a news aggregation API that collects information from multiple Spanish media sources, classifying them by political bias and grouping them by topics to provide a plural view of current events.
 
-## 🎯 Características
+## 🎯 Features
 
-- **Agregación de noticias**: Recopila noticias de 10+ medios españoles principales
-- **Clasificación por sesgo**: Categoriza las fuentes según su orientación política (left, center, right)
-- **Agrupación temática**: Agrupa noticias similares usando hashing de títulos
-- **API REST**: Endpoints para consultar noticias y métricas
-- **Base de datos PostgreSQL**: Almacenamiento persistente de artículos y fuentes
-- **Docker**: Contenedorización completa para desarrollo y producción
+- **News aggregation**: Collects news from 10+ major Spanish media outlets
+- **Bias classification**: Categorizes sources according to their political orientation (left, center, right)
+- **Thematic grouping**: Groups similar news using title hashing
+- **REST API**: Endpoints to query news and metrics
+- **PostgreSQL database**: Persistent storage of articles and sources
+- **Docker**: Complete containerization for development and production
+- **Monorepo architecture**: Separated services following Domain-Driven Design
 
-## 🏗️ Arquitectura
+## 🏗️ Architecture
 
-El proyecto está estructurado con:
+The project is structured as a **monorepo** following **Domain-Driven Design (DDD)** and **Clean Architecture** principles:
 
-- **FastAPI**: Framework web moderno y rápido para Python
-- **SQLModel**: ORM que combina SQLAlchemy con Pydantic
-- **PostgreSQL**: Base de datos relacional para persistencia
-- **feedparser**: Biblioteca para parsear feeds RSS/Atom
-- **Docker Compose**: Orquestación de servicios
+- **libs/domain**: Shared domain code (entities, value objects, repositories)
+- **services/api**: REST API service (FastAPI)
+- **services/ingest**: News ingestion service from RSS feeds
+- **services/web**: Web frontend (pending implementation)
 
-## 📁 Estructura del Proyecto
+### Technologies
+
+- **FastAPI**: Modern and fast web framework for Python
+- **SQLModel**: ORM that combines SQLAlchemy with Pydantic
+- **PostgreSQL**: Relational database for persistence
+- **feedparser**: Library for parsing RSS/Atom feeds
+- **Docker Compose**: Service orchestration
+
+## 📁 Project Structure
 
 ```
 pluralia/
-├── api/
-│   └── app/
-│       ├── main.py          # Aplicación FastAPI principal
-│       ├── routes.py        # Endpoints de la API
-│       ├── models.py        # Modelos de datos (SQLModel)
-│       ├── db.py           # Configuración de base de datos
-│       ├── ingest.py       # Script de ingesta de noticias
-│       └── rss.py          # Utilidades RSS (vacío)
-├── docker-compose.yml      # Orquestación de servicios
-├── Dockerfile             # Imagen de la aplicación
-└── README.md              # Este archivo
+├── libs/
+│   └── domain/                    # Shared domain code
+│       ├── entities/              # Domain entities (Source, Article, NewsGroup)
+│       ├── value_objects/         # Value Objects (Bias, TopicHash)
+│       ├── repositories/          # Repository interfaces
+│       └── errors/                # Domain exceptions
+├── services/
+│   ├── api/                       # REST API service
+│   │   ├── src/
+│   │   │   ├── domain/            # API-specific domain logic
+│   │   │   ├── application/       # Use cases
+│   │   │   └── infrastructure/    # Technical implementations
+│   │   │       ├── api/           # FastAPI controllers/routes
+│   │   │       ├── repositories/  # Repository implementations
+│   │   │       └── database/      # SQLModel models and DB configuration
+│   │   ├── Dockerfile
+│   │   └── requirements.txt
+│   ├── ingest/                    # Ingestion service
+│   │   ├── src/
+│   │   │   ├── domain/
+│   │   │   ├── application/       # Ingestion use cases
+│   │   │   └── infrastructure/
+│   │   │       ├── repositories/
+│   │   │       ├── services/      # Technical services (RSS parser)
+│   │   │       └── database/
+│   │   ├── Dockerfile
+│   │   └── requirements.txt
+│   └── web/                       # Frontend (pending)
+│       └── src/
+├── docker-compose.yml             # Orchestration of all services
+├── setup.py                       # Configuration for libs imports
+└── README.md                      # This file
 ```
 
-## 🚀 Instalación y Desarrollo Local
+## 🚀 Installation and Local Development
 
-### Prerrequisitos
+### Prerequisites
 
-- **Docker** y **Docker Compose**
-- **Python 3.11+** (para desarrollo local sin Docker)
-- **PostgreSQL** (si ejecutas sin Docker)
+- **Docker** and **Docker Compose**
+- **Python 3.11+** (for local development without Docker)
+- **PostgreSQL** (if running without Docker)
 
-### Opción 1: Desarrollo con Docker (Recomendado)
+### Option 1: Development with Docker (Recommended)
 
-1. **Clona el repositorio**:
+1. **Clone the repository**:
    ```bash
-   git clone <url-del-repositorio>
+   git clone <repository-url>
    cd pluralia
    ```
 
-2. **Levanta los servicios**:
+2. **Start the services**:
    ```bash
    docker-compose up -d
    ```
 
-3. **Verifica que todo funciona**:
+3. **Verify everything works**:
    ```bash
-   # Verificar que la API responde
+   # Verify the API responds
    curl http://localhost:8000/health
    
-   # Verificar que la base de datos está disponible
+   # Verify the database is available
    docker-compose logs db
    ```
 
-4. **Ejecuta la ingesta inicial de noticias**:
+4. **Run the initial news ingestion**:
    ```bash
-   docker-compose exec pluralia-api python -m api.app.ingest
+   docker-compose run --rm pluralia-ingest python -m services.ingest.src.main
    ```
 
-5. **Accede a la documentación de la API**:
+5. **Access the API documentation**:
    - Swagger UI: http://localhost:8000/docs
    - ReDoc: http://localhost:8000/redoc
 
-### Opción 2: Desarrollo Local (Sin Docker)
+### Option 2: Local Development (Without Docker)
 
-1. **Instala las dependencias**:
+1. **Install dependencies**:
    ```bash
-   cd api
+   # Install API dependencies
+   cd services/api
+   pip install -r requirements.txt
+   
+   # Install ingest dependencies
+   cd ../ingest
    pip install -r requirements.txt
    ```
 
-2. **Configura PostgreSQL**:
-   - Instala PostgreSQL localmente
-   - Crea una base de datos llamada `pluralia`
-   - Configura las variables de entorno:
+2. **Configure PostgreSQL**:
+   - Install PostgreSQL locally
+   - Create a database named `pluralia`
+   - Set environment variables:
      ```bash
      export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/pluralia"
+     export PYTHONPATH="${PYTHONPATH}:$(pwd)"
      ```
 
-3. **Ejecuta la aplicación**:
+3. **Run the API application**:
    ```bash
-   cd api
-   uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+   cd services/api
+   uvicorn services.api.src.main:app --reload --host 0.0.0.0 --port 8000
    ```
 
-4. **Ejecuta la ingesta**:
+4. **Run the ingestion**:
    ```bash
-   python -m app.ingest
+   cd services/ingest
+   python -m services.ingest.src.main
    ```
 
-## 📊 Endpoints de la API
+## 📊 API Endpoints
 
 ### `GET /health`
-Verifica el estado de la API.
+Checks the API status.
 
-**Respuesta**:
+**Response**:
 ```json
 {
   "status": "ok"
@@ -117,114 +153,194 @@ Verifica el estado de la API.
 ```
 
 ### `GET /news`
-Obtiene noticias recientes de múltiples fuentes.
+Gets recent news from multiple sources.
 
-**Parámetros**:
-- `limit` (opcional): Número de noticias por fuente (default: 20)
+**Parameters**:
+- `limit` (optional): Number of news items per source (default: 20)
 
-**Respuesta**:
+**Response**:
 ```json
 {
   "news": [
     {
-      "title": "Título de la noticia",
-      "link": "https://ejemplo.com/noticia",
-      "published": "Mon, 01 Jan 2024 12:00:00 GMT",
-      "source": "El País"
+      "id": "uuid",
+      "title": "News title",
+      "link": "https://example.com/news",
+      "description": "News description",
+      "published": "2024-01-01T12:00:00",
+      "source": "El País",
+      "bias": "left"
     }
   ]
 }
 ```
 
-## 🔧 Comandos Útiles
+## 🔧 Useful Commands
 
 ### Docker Compose
 
 ```bash
-# Levantar servicios
+# Start services (only API and DB, ingest does NOT start automatically)
 docker-compose up -d
 
-# Ver logs
+# View logs from all services
 docker-compose logs -f
 
-# Parar servicios
+# View logs from a specific service
+docker-compose logs -f pluralia-api
+
+# Stop services
 docker-compose down
 
-# Reconstruir imagen
+# Rebuild images
 docker-compose build --no-cache
 
-# Ejecutar comando en el contenedor
-docker-compose exec pluralia-api <comando>
+# Run ingestion manually (runs, ingests news, and exits)
+docker-compose run --rm pluralia-ingest python -m services.ingest.src.main
 
-# Acceder a la base de datos
+# Or using the profile (if you want to start it as a service)
+docker-compose --profile ingest up -d pluralia-ingest
+
+# Access the database
 docker-compose exec db psql -U postgres -d pluralia
 ```
 
-### Desarrollo
+### Schedule automatic ingestion
+
+The `ingest` service is configured with a `profile`, so it **does NOT start automatically** with `docker-compose up -d`. It only runs when explicitly invoked.
+
+**Option 1: Cron job (Linux/Mac)**
+
+Add this line to your crontab (`crontab -e`):
 
 ```bash
-# Ejecutar ingesta de noticias
-python -m api.app.ingest
+# Run ingestion every hour
+0 * * * * cd /full/path/to/pluralia && docker-compose run --rm pluralia-ingest python -m services.ingest.src.main >> /var/log/pluralia-ingest.log 2>&1
 
-# Ejecutar tests (cuando estén implementados)
-pytest
-
-# Formatear código
-black api/
-
-# Linting
-flake8 api/
+# Run ingestion every 30 minutes
+*/30 * * * * cd /full/path/to/pluralia && docker-compose run --rm pluralia-ingest python -m services.ingest.src.main >> /var/log/pluralia-ingest.log 2>&1
 ```
 
-## 🗄️ Base de Datos
+**Option 2: Task Scheduler (Windows)**
 
-### Modelos Principales
+Create a scheduled task that runs:
 
-- **Source**: Fuentes de noticias con su sesgo político
-- **Article**: Artículos individuales
-- **NewsGroup**: Grupos de noticias relacionadas por tema
+```powershell
+cd C:\path\to\pluralia
+docker-compose run --rm pluralia-ingest python -m services.ingest.src.main
+```
 
-### Migraciones
+**Option 3: Systemd timer (Linux)**
 
-La base de datos se inicializa automáticamente al ejecutar la aplicación por primera vez.
+Create `/etc/systemd/system/pluralia-ingest.service`:
 
-## 🔄 Flujo de Datos
+```ini
+[Unit]
+Description=Pluralia News Ingest
+After=docker.service
+Requires=docker.service
 
-1. **Ingesta**: El script `ingest.py` parsea feeds RSS de múltiples fuentes
-2. **Clasificación**: Cada fuente tiene un sesgo político asignado
-3. **Agrupación**: Los artículos se agrupan por similitud de título usando hash
-4. **Almacenamiento**: Los datos se guardan en PostgreSQL
-5. **API**: Los endpoints exponen los datos para consumo
+[Service]
+Type=oneshot
+WorkingDirectory=/path/to/pluralia
+ExecStart=/usr/bin/docker-compose run --rm pluralia-ingest python -m services.ingest.src.main
+```
 
-## 🛠️ Tecnologías Utilizadas
+And `/etc/systemd/system/pluralia-ingest.timer`:
+
+```ini
+[Unit]
+Description=Run Pluralia Ingest hourly
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+```
+
+Then enable the timer:
+```bash
+sudo systemctl enable pluralia-ingest.timer
+sudo systemctl start pluralia-ingest.timer
+```
+
+### Development
+
+```bash
+# Run news ingestion
+python -m services.ingest.src.main
+
+# Run tests (when implemented)
+pytest
+
+# Format code
+black services/ libs/
+
+# Linting
+flake8 services/ libs/
+```
+
+## 🗄️ Database
+
+### Main Models
+
+- **Source**: News sources with their political bias
+- **Article**: Individual articles
+- **NewsGroup**: Groups of related news by topic
+
+### Migrations
+
+The database is automatically initialized when running the application for the first time.
+
+## 🔄 Data Flow
+
+1. **Ingestion**: The `ingest` service parses RSS feeds from multiple sources
+2. **Classification**: Each source has an assigned political bias (left, center, right)
+3. **Grouping**: Articles are grouped by title similarity using SHA256 hashing
+4. **Storage**: Data is saved to PostgreSQL
+5. **API**: The `api` service exposes data for consumption through REST endpoints
+
+## 🏛️ Domain Architecture
+
+The project follows **Domain-Driven Design (DDD)**:
+
+- **Entities**: `Source`, `Article`, `NewsGroup` - Objects with unique identity
+- **Value Objects**: `Bias`, `TopicHash` - Immutable objects without identity
+- **Repositories**: Interfaces in the domain, implementations in infrastructure
+- **Use Cases**: Application logic orchestrating domain operations
+
+## 🛠️ Technologies Used
 
 - **Python 3.11**
-- **FastAPI** - Framework web
-- **SQLModel** - ORM y validación
-- **PostgreSQL** - Base de datos
-- **feedparser** - Parseo de feeds RSS
-- **Docker** - Contenedorización
-- **Uvicorn** - Servidor ASGI
+- **FastAPI** - Web framework
+- **SQLModel** - ORM and validation
+- **PostgreSQL** - Database
+- **feedparser** - RSS feed parsing
+- **Docker** - Containerization
+- **Uvicorn** - ASGI server
 
-## 📝 Notas de Desarrollo
+## 📝 Development Notes
 
-- El proyecto usa **SQLModel** que combina SQLAlchemy con Pydantic
-- Los feeds RSS se actualizan manualmente ejecutando el script de ingesta
-- La agrupación de noticias usa hashing SHA256 de los títulos normalizados
-- El proyecto está preparado para escalar con más fuentes y funcionalidades
+- The project uses **SQLModel** which combines SQLAlchemy with Pydantic
+- RSS feeds are updated by running the ingestion service
+- News grouping uses SHA256 hashing of normalized titles
+- Domain code is in `libs/domain` and is shared between services
+- Each service has its own repository implementations in the infrastructure layer
 
-## 🤝 Contribución
+## 🤝 Contributing
 
-1. Fork el proyecto
-2. Crea una rama para tu feature (`git checkout -b feature/nueva-funcionalidad`)
-3. Commit tus cambios (`git commit -m 'Añadir nueva funcionalidad'`)
-4. Push a la rama (`git push origin feature/nueva-funcionalidad`)
-5. Abre un Pull Request
+1. Fork the project
+2. Create a feature branch (`git checkout -b feature/new-feature`)
+3. Commit your changes (`git commit -m 'Add new feature'`)
+4. Push to the branch (`git push origin feature/new-feature`)
+5. Open a Pull Request
 
-## 📄 Licencia
+## 📄 License
 
-Este proyecto está bajo la Licencia MIT. Ver el archivo `LICENSE` para más detalles.
+This project is under the MIT License. See the `LICENSE` file for more details.
 
 ---
 
-**Desarrollado con ❤️ para promover el pluralismo informativo**
+**Developed with ❤️ to promote informational pluralism**
