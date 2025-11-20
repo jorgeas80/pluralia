@@ -18,6 +18,8 @@ services:
     restart: unless-stopped
 
   pluralia-ingest:
+    profiles:
+      - ingest
     build:
       context: .
       dockerfile: services/ingest/Dockerfile
@@ -30,7 +32,7 @@ services:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/pluralia
     depends_on:
       - db
-    restart: unless-stopped
+    restart: "no"
 
   db:
     image: postgres:15

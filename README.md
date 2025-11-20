@@ -180,7 +180,7 @@ Obtiene noticias recientes de múltiples fuentes.
 ### Docker Compose
 
 ```bash
-# Levantar todos los servicios
+# Levantar servicios (solo API y DB, ingest NO se levanta automáticamente)
 docker-compose up -d
 
 # Ver logs de todos los servicios
@@ -188,7 +188,6 @@ docker-compose logs -f
 
 # Ver logs de un servicio específico
 docker-compose logs -f pluralia-api
-docker-compose logs -f pluralia-ingest
 
 # Parar servicios
 docker-compose down
@@ -196,11 +195,75 @@ docker-compose down
 # Reconstruir imágenes
 docker-compose build --no-cache
 
-# Ejecutar ingesta manualmente
-docker-compose exec pluralia-ingest python -m services.ingest.src.main
+# Ejecutar ingesta manualmente (se ejecuta, ingesta noticias y termina)
+docker-compose run --rm pluralia-ingest python -m services.ingest.src.main
+
+# O usando el perfil (si quieres levantarlo como servicio)
+docker-compose --profile ingest up -d pluralia-ingest
 
 # Acceder a la base de datos
 docker-compose exec db psql -U postgres -d pluralia
+```
+
+### Programar ingesta automática
+
+El servicio `ingest` está configurado con un `profile`, por lo que **NO se levanta automáticamente** con `docker-compose up -d`. Solo se ejecuta cuando lo invocas explícitamente.
+
+**Opción 1: Cron job (Linux/Mac)**
+
+Añade esta línea a tu crontab (`crontab -e`):
+
+```bash
+# Ejecutar ingesta cada hora
+0 * * * * cd /ruta/completa/a/pluralia && docker-compose run --rm pluralia-ingest python -m services.ingest.src.main >> /var/log/pluralia-ingest.log 2>&1
+
+# Ejecutar ingesta cada 30 minutos
+*/30 * * * * cd /ruta/completa/a/pluralia && docker-compose run --rm pluralia-ingest python -m services.ingest.src.main >> /var/log/pluralia-ingest.log 2>&1
+```
+
+**Opción 2: Task Scheduler (Windows)**
+
+Crea una tarea programada que ejecute:
+
+```powershell
+cd C:\ruta\a\pluralia
+docker-compose run --rm pluralia-ingest python -m services.ingest.src.main
+```
+
+**Opción 3: Systemd timer (Linux)**
+
+Crea `/etc/systemd/system/pluralia-ingest.service`:
+
+```ini
+[Unit]
+Description=Pluralia News Ingest
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/ruta/a/pluralia
+ExecStart=/usr/bin/docker-compose run --rm pluralia-ingest python -m services.ingest.src.main
+```
+
+Y `/etc/systemd/system/pluralia-ingest.timer`:
+
+```ini
+[Unit]
+Description=Run Pluralia Ingest hourly
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+```
+
+Luego activa el timer:
+```bash
+sudo systemctl enable pluralia-ingest.timer
+sudo systemctl start pluralia-ingest.timer
 ```
 
 ### Desarrollo

@@ -16,5 +16,6 @@ COPY services/ingest /app/services/ingest
 # Set PYTHONPATH to include libs
 ENV PYTHONPATH=/app
 
-CMD ["python", "-m", "services.ingest.src.main"]
+# No CMD por defecto - se ejecuta manualmente cuando se necesite
+# docker-compose run --rm pluralia-ingest python -m services.ingest.src.main
 
