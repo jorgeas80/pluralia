@@ -1,5 +1,6 @@
 """Tests for GetNews use case."""
 import pytest
+from unittest.mock import AsyncMock
 from services.api.src.application.get_news import GetNews
 from tests.factories.source_factory import SourceFactory
 from tests.factories.article_factory import ArticleFactory
