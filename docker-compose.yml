@@ -34,6 +34,25 @@ services:
       - db
     restart: "no"
 
+  pluralia-test:
+    profiles:
+      - test
+    build:
+      context: .
+      dockerfile: tests/Dockerfile
+    container_name: pluralia-test
+    volumes:
+      - ./services:/app/services
+      - ./libs:/app/libs
+      - ./tests:/app/tests
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/pluralia
+      - TEST_DATABASE_URL=postgresql://postgres:postgres@db:5432/pluralia_test
+    depends_on:
+      - db
+    restart: "no"
+
   db:
     image: postgres:15
     container_name: pluralia-db
