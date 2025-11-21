@@ -3,11 +3,11 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-# Instala deps
+# Install dependencies
 COPY api/requirements.txt /tmp/requirements.txt
 RUN python -m pip install --no-cache-dir -r /tmp/requirements.txt
 
-# Copia la app
+# Copy the app
 COPY api /app/api
 
 EXPOSE 8000
