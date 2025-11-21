@@ -203,6 +203,12 @@ docker-compose --profile ingest up -d pluralia-ingest
 
 # Access the database
 docker-compose exec db psql -U postgres -d pluralia
+
+# Run tests
+docker-compose --profile test run --rm pluralia-test pytest
+
+# Run tests with coverage
+docker-compose --profile test run --rm pluralia-test pytest --cov=libs --cov=services --cov-report=html
 ```
 
 ### Schedule automatic ingestion

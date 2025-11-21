@@ -24,13 +24,35 @@ tests/
 
 ## Running Tests
 
-### Install Dependencies
+### Option 1: Using Docker (Recommended)
+
+```bash
+# Run all tests
+docker-compose --profile test run --rm pluralia-test pytest
+
+# Run with verbose output
+docker-compose --profile test run --rm pluralia-test pytest -v
+
+# Run specific test category
+docker-compose --profile test run --rm pluralia-test pytest tests/unit
+docker-compose --profile test run --rm pluralia-test pytest tests/integration
+
+# Run specific test file
+docker-compose --profile test run --rm pluralia-test pytest tests/unit/domain/entities/test_source.py
+
+# Run with coverage
+docker-compose --profile test run --rm pluralia-test pytest --cov=libs --cov=services --cov-report=html
+```
+
+### Option 2: Local Development
+
+#### Install Dependencies
 
 ```bash
 pip install -r tests/requirements.txt
 ```
 
-### Run All Tests
+#### Run All Tests
 
 ```bash
 pytest
