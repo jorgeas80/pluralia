@@ -37,10 +37,11 @@ async def test_execute_returns_news_from_all_sources(mock_article_repository, mo
 
 async def test_execute_respects_limit_parameter(mock_article_repository, mock_source_repository):
     source = SourceFactory.build()
-    articles = [ArticleFactory.build(source_id=source.id) for _ in range(5)]
+    all_articles = [ArticleFactory.build(source_id=source.id) for _ in range(5)]
+    limited_articles = all_articles[:3]
     
     mock_source_repository.find_all = AsyncMock(return_value=[source])
-    mock_article_repository.find_by_source_id = AsyncMock(return_value=articles)
+    mock_article_repository.find_by_source_id = AsyncMock(return_value=limited_articles)
     
     use_case = GetNews(
         article_repository=mock_article_repository,
