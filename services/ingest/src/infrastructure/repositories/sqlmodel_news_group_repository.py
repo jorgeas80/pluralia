@@ -35,12 +35,18 @@ class SqlModelNewsGroupRepository(NewsGroupRepository):
         ).first()
         return self._to_entity(result) if result else None
 
+    async def find_all(self) -> list[NewsGroup]:
+        """Finds all news groups."""
+        results = self._session.exec(select(NewsGroupModel)).all()
+        return [self._to_entity(model) for model in results]
+
     def _to_model(self, group: NewsGroup) -> NewsGroupModel:
         return NewsGroupModel(
             id=str(group.id),
             topic_hash=group.topic_hash.value,
             summary=group.summary,
             created_at=group.created_at,
+            embedding=group.embedding,
         )
 
     def _to_entity(self, model: NewsGroupModel) -> NewsGroup:
@@ -61,5 +67,6 @@ class SqlModelNewsGroupRepository(NewsGroupRepository):
             topic_hash=TopicHash(value=model.topic_hash),
             summary=model.summary,
             created_at=model.created_at,
+            embedding=model.embedding,
         )
 

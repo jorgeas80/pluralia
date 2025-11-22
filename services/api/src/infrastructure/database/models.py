@@ -1,5 +1,5 @@
 from sqlmodel import SQLModel, Field, Column
-from sqlalchemy import String, ForeignKey
+from sqlalchemy import String, ForeignKey, JSON
 from typing import Optional
 from datetime import datetime
 
@@ -20,6 +20,7 @@ class NewsGroupModel(SQLModel, table=True):
     topic_hash: str
     summary: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    embedding: Optional[list[float]] = Field(default=None, sa_column=Column(JSON))
 
 
 class ArticleModel(SQLModel, table=True):

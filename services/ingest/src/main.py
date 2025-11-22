@@ -6,6 +6,7 @@ from services.ingest.src.infrastructure.repositories.sqlmodel_article_repository
 from services.ingest.src.infrastructure.repositories.sqlmodel_news_group_repository import SqlModelNewsGroupRepository
 from services.ingest.src.infrastructure.repositories.sqlmodel_source_repository import SqlModelSourceRepository
 from services.ingest.src.infrastructure.services.rss_parser import RSSParser
+from services.ingest.src.infrastructure.services.openai_embedding_service import OpenAIEmbeddingService
 
 FEEDS = {
     "El País": {
@@ -60,12 +61,15 @@ async def main():
         article_repository = SqlModelArticleRepository(session)
         news_group_repository = SqlModelNewsGroupRepository(session)
         rss_parser = RSSParser()
+        embedding_service = OpenAIEmbeddingService()
 
         ingest_news = IngestNews(
             source_repository=source_repository,
             article_repository=article_repository,
             news_group_repository=news_group_repository,
             rss_parser=rss_parser,
+            embedding_service=embedding_service,
+            similarity_threshold=0.7,
         )
 
         for name, config in FEEDS.items():

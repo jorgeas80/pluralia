@@ -13,6 +13,7 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/pluralia
+      - DROP_DB=${DROP_DB:-false}
     depends_on:
       - db
     restart: unless-stopped
@@ -30,6 +31,8 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/pluralia
+      - DROP_DB=${DROP_DB:-false}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
     depends_on:
       - db
     restart: "no"
