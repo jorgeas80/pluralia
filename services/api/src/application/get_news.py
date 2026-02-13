@@ -29,7 +29,8 @@ class GetNews:
                     "published": article.published_at.isoformat() if article.published_at else None,
                     "source": source.name,
                     "bias": source.bias.value,
+                    "sensationalism_score": article.sensationalism_score,
+                    "sensationalism_explanation": article.sensationalism_explanation,
                 })
 
         return all_articles
-

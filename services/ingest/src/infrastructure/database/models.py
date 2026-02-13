@@ -33,4 +33,6 @@ class ArticleModel(SQLModel, table=True):
     description: Optional[str] = None
     link: str
     published_at: Optional[datetime] = None
-
+    sensationalism_score: Optional[float] = None
+    sensationalism_explanation: Optional[str] = None
+    analysis_metadata: Optional[dict] = Field(default=None, sa_column=Column(JSON))
