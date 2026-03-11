@@ -12,6 +12,7 @@ from libs.domain.value_objects.bias import Bias
 from libs.domain.value_objects.topic_hash import TopicHash
 from dataclasses import replace
 from libs.domain.services.analysis_service import NewsAnalyzer
+from services.ingest.src.infrastructure.services.rss_parser import RSSParser
 
 class IngestNews:
     """Use case for ingesting news from RSS feeds."""

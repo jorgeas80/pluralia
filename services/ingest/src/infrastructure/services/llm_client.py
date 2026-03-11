@@ -17,8 +17,8 @@ Instrucciones:
 2. Extracción de Adjetivos (Numerador):
    - Tipo A (Funcionales): Descriptivos, técnicos (ej: "pública", "anual"). Valor = 0.
    - Tipo B (Valorativos/Emocionales): Juicios de valor, carga emocional (ej: "preocupante", "brutal", "vergonzoso"). Valor = 1. Cuenta total = A_sub.
-3. Cálculo: IS = A_sub / H. (Si H=0, IS=0).
-4. Normalización: Escala 0-1. IS > 0.5 es saturación.
+3. Cálculo: IS = A_sub / (A_sub + H). (Si A_sub=0 y H=0, IS=0).
+4. El resultado es naturalmente entre 0.0 y 1.0. IS > 0.5 indica predominio sensacionalista.
 
 Analiza el siguiente texto (Titular + Descripción):
 Titulo: {title}
