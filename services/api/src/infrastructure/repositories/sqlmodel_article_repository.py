@@ -44,6 +44,9 @@ class SqlModelArticleRepository(ArticleRepository):
             published_at=article.published_at,
             source_id=str(article.source_id),
             group_id=str(article.group_id) if article.group_id else None,
+            sensationalism_score=article.sensationalism_score,
+            sensationalism_explanation=article.sensationalism_explanation,
+            analysis_metadata=article.analysis_metadata,
         )
 
     def _to_entity(self, model: ArticleModel) -> Article:
@@ -62,11 +65,11 @@ class SqlModelArticleRepository(ArticleRepository):
                 except (ValueError, AttributeError):
                     # Fallback: generate UUID from string
                     return uuid5(NAMESPACE_DNS, f"{prefix}-{value}")
-        
+
         model_id = _to_uuid(model.id, "article")
         source_id = _to_uuid(model.source_id, "source") if model.source_id else None
         group_id = _to_uuid(model.group_id, "newsgroup") if model.group_id else None
-        
+
         return Article.build(
             id=model_id,
             title=model.title,
@@ -75,5 +78,7 @@ class SqlModelArticleRepository(ArticleRepository):
             published_at=model.published_at,
             source_id=source_id,
             group_id=group_id,
+            sensationalism_score=model.sensationalism_score,
+            sensationalism_explanation=model.sensationalism_explanation,
+            analysis_metadata=model.analysis_metadata,
         )
-

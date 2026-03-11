@@ -1,4 +1,5 @@
 sqlmodel
 psycopg2-binary
 feedparser
+openai
 

@@ -5,7 +5,10 @@ from services.ingest.src.infrastructure.database.db import init_db, get_session
 from services.ingest.src.infrastructure.repositories.sqlmodel_article_repository import SqlModelArticleRepository
 from services.ingest.src.infrastructure.repositories.sqlmodel_news_group_repository import SqlModelNewsGroupRepository
 from services.ingest.src.infrastructure.repositories.sqlmodel_source_repository import SqlModelSourceRepository
+import os
 from services.ingest.src.infrastructure.services.rss_parser import RSSParser
+from services.ingest.src.infrastructure.services.openai_embedding_service import OpenAIEmbeddingService
+from services.ingest.src.infrastructure.services.llm_client import OpenAINewsAnalyzer
 
 FEEDS = {
     "El País": {
@@ -60,12 +63,24 @@ async def main():
         article_repository = SqlModelArticleRepository(session)
         news_group_repository = SqlModelNewsGroupRepository(session)
         rss_parser = RSSParser()
+        embedding_service = OpenAIEmbeddingService()
+
+        # Initialize LLM client for sensationalism analysis
+        news_analyzer = None
+        openai_api_key = os.getenv("OPENAI_API_KEY")
+        if openai_api_key:
+            news_analyzer = OpenAINewsAnalyzer(api_key=openai_api_key)
+        else:
+            print("⚠️ MK: OPENAI_API_KEY not found. Sensationalism analysis will be skipped.")
 
         ingest_news = IngestNews(
             source_repository=source_repository,
             article_repository=article_repository,
             news_group_repository=news_group_repository,
             rss_parser=rss_parser,
+            embedding_service=embedding_service,
+            news_analyzer=news_analyzer,
+            similarity_threshold=0.7,
         )
 
         for name, config in FEEDS.items():
@@ -83,4 +98,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-

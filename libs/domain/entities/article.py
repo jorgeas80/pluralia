@@ -15,12 +15,16 @@ class Article:
     published_at: Optional[datetime]
     source_id: UUID
     group_id: Optional[UUID] = None
+    sensationalism_score: Optional[float] = None
+    sensationalism_explanation: Optional[str] = None
+    analysis_metadata: Optional[dict] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         self._validate_id()
         self._validate_title()
         self._validate_link()
         self._validate_source_id()
+        self._validate_sensationalism_score()
 
     @classmethod
     def new(
@@ -31,6 +35,9 @@ class Article:
         description: Optional[str] = None,
         published_at: Optional[datetime] = None,
         group_id: Optional[UUID] = None,
+        sensationalism_score: Optional[float] = None,
+        sensationalism_explanation: Optional[str] = None,
+        analysis_metadata: Optional[dict] = None,
         id: Optional[UUID] = None,
     ) -> "Article":
         if id is None:
@@ -43,6 +50,9 @@ class Article:
             published_at=published_at,
             source_id=source_id,
             group_id=group_id,
+            sensationalism_score=sensationalism_score,
+            sensationalism_explanation=sensationalism_explanation,
+            analysis_metadata=analysis_metadata or {},
         )
 
     @classmethod
@@ -55,6 +65,9 @@ class Article:
         description: Optional[str],
         published_at: Optional[datetime],
         group_id: Optional[UUID],
+        sensationalism_score: Optional[float] = None,
+        sensationalism_explanation: Optional[str] = None,
+        analysis_metadata: Optional[dict] = None,
     ) -> "Article":
         return cls(
             id=id,
@@ -64,6 +77,9 @@ class Article:
             published_at=published_at,
             source_id=source_id,
             group_id=group_id,
+            sensationalism_score=sensationalism_score,
+            sensationalism_explanation=sensationalism_explanation,
+            analysis_metadata=analysis_metadata or {},
         )
 
     def assign_to_group(self, group_id: UUID) -> "Article":
@@ -76,6 +92,9 @@ class Article:
             published_at=self.published_at,
             source_id=self.source_id,
             group_id=group_id,
+            sensationalism_score=self.sensationalism_score,
+            sensationalism_explanation=self.sensationalism_explanation,
+            analysis_metadata=self.analysis_metadata,
         )
 
     def _validate_id(self) -> None:
@@ -96,3 +115,9 @@ class Article:
         if not isinstance(self.source_id, UUID):
             raise InvalidDomainError("Article source_id must be a UUID")
 
+    def _validate_sensationalism_score(self) -> None:
+        if self.sensationalism_score is not None:
+            if not isinstance(self.sensationalism_score, float):
+                 raise InvalidDomainError("Sensationalism score must be a float")
+            if not (0.0 <= self.sensationalism_score <= 1.0):
+                raise InvalidDomainError("Sensationalism score must be between 0.0 and 1.0")

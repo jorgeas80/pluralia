@@ -177,6 +177,21 @@ Gets recent news from multiple sources.
 
 ## 🔧 Useful Commands
 
+### Using Makefile
+
+The project includes helper scripts to simplify common tasks:
+
+```bash
+make help          # Show all available commands
+make up            # Start all services
+make down          # Stop all services
+make clean-db      # Drop and recreate database (WARNING: deletes all data)
+make recreate-db   # Recreate database tables (drops existing tables)
+make ingest        # Run news ingestion
+make test          # Run all tests
+make logs-api      # View API logs
+```
+
 ### Docker Compose
 
 ```bash

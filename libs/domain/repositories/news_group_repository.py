@@ -22,3 +22,8 @@ class NewsGroupRepository(ABC):
         """Finds a news group by its topic hash."""
         raise NotImplementedError
 
+    @abstractmethod
+    async def find_all(self) -> list[NewsGroup]:
+        """Finds all news groups."""
+        raise NotImplementedError
+

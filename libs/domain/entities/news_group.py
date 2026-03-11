@@ -13,6 +13,7 @@ class NewsGroup:
     topic_hash: TopicHash
     summary: Optional[str] = None
     created_at: datetime = field(default_factory=datetime.utcnow)
+    embedding: Optional[list[float]] = field(default=None, compare=False, hash=False)
 
     def __post_init__(self) -> None:
         self._validate_id()
@@ -24,6 +25,7 @@ class NewsGroup:
         topic_hash: TopicHash,
         summary: Optional[str] = None,
         id: Optional[UUID] = None,
+        embedding: Optional[list[float]] = None,
     ) -> "NewsGroup":
         if id is None:
             id = uuid4()
@@ -32,6 +34,7 @@ class NewsGroup:
             topic_hash=topic_hash,
             summary=summary,
             created_at=datetime.utcnow(),
+            embedding=embedding,
         )
 
     @classmethod
@@ -41,12 +44,14 @@ class NewsGroup:
         topic_hash: TopicHash,
         summary: Optional[str],
         created_at: datetime,
+        embedding: Optional[list[float]] = None,
     ) -> "NewsGroup":
         return cls(
             id=id,
             topic_hash=topic_hash,
             summary=summary,
             created_at=created_at,
+            embedding=embedding,
         )
 
     def _validate_id(self) -> None:

@@ -10,8 +10,10 @@ engine = create_engine(DATABASE_URL, echo=True)
 
 def init_db():
     """Initialize database tables. Drops existing tables first in development."""
-    # Drop all tables first to ensure clean schema
-    SQLModel.metadata.drop_all(engine)
+    # Only drop tables in development (when DROP_DB=true)
+    drop_db = os.getenv("DROP_DB", "false").lower() == "true"
+    if drop_db:
+        SQLModel.metadata.drop_all(engine)
     # Create tables with correct types
     SQLModel.metadata.create_all(engine)
 
