@@ -1,4 +1,4 @@
-.PHONY: help up down build logs test clean-db ingest
+.PHONY: help up down build logs test clean-db ingest web-build logs-web
 
 help: ## Show this help message
 	@echo "Available commands:"
@@ -87,4 +87,10 @@ migrate: ## Run database migrations
 
 migrate-create: ## Create a new migration (usage: make migrate-create MESSAGE="description")
 	docker-compose exec pluralia-api sh -c "cd services/api && alembic revision --autogenerate -m '$(MESSAGE)'"
+
+web-build: ## Rebuild web frontend image
+	docker-compose build pluralia-web
+
+logs-web: ## Show logs from web service
+	docker-compose logs -f pluralia-web
 

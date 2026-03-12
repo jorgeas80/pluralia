@@ -56,6 +56,18 @@ services:
       - db
     restart: "no"
 
+  pluralia-web:
+    build:
+      context: services/web
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
+    container_name: pluralia-web
+    ports:
+      - "3000:80"
+    depends_on:
+      - pluralia-api
+    restart: unless-stopped
+
   db:
     image: postgres:15
     container_name: pluralia-db
