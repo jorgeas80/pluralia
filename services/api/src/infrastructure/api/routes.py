@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlmodel import Session
 
+from services.api.src.application.get_groups import GetGroups
 from services.api.src.application.get_news import GetNews
 from services.api.src.infrastructure.database.db import get_session
 from services.api.src.infrastructure.repositories.sqlmodel_article_repository import SqlModelArticleRepository
@@ -17,6 +18,15 @@ def get_article_repository() -> SqlModelArticleRepository:
 def get_source_repository() -> SqlModelSourceRepository:
     with get_session() as session:
         return SqlModelSourceRepository(session)
+
+
+@router.get("/groups")
+async def get_groups(limit: int = 50, min_articles: int = 2):
+    """Returns news groups with their articles, sorted by coverage (most sources first)."""
+    with get_session() as session:
+        use_case = GetGroups(session=session)
+        groups = await use_case.execute(limit=limit, min_articles=min_articles)
+        return {"groups": groups}
 
 
 @router.get("/news")
