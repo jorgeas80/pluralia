@@ -1,4 +1,4 @@
-type View = "news" | "sources";
+type View = "news" | "groups" | "sources";
 
 interface HeaderProps {
   view: View;
@@ -25,6 +25,7 @@ export function Header({ view, onViewChange }: HeaderProps) {
         <h1 className="text-2xl font-bold mb-3">Pluralia</h1>
         <nav className="flex gap-1">
           {tab("news", "Noticias")}
+          {tab("groups", "Clusters")}
           {tab("sources", "Fuentes")}
         </nav>
       </div>
