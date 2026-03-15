@@ -1,0 +1,26 @@
+name: News Ingest
+
+on:
+  schedule:
+    - cron: "0 8,11,14,17,20,22 * * *"  # horas pico: 8h, 11h, 14h, 17h, 20h, 22h (UTC)
+  workflow_dispatch: # también ejecutable manualmente desde GitHub Actions
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r services/ingest/requirements.txt
+
+      - name: Run ingest
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          PYTHONPATH: ${{ github.workspace }}
+        run: python -m services.ingest.src.main
