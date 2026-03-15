@@ -4,6 +4,9 @@ primary_region = "cdg"
 [build]
   dockerfile = "services/api/Dockerfile"
 
+[deploy]
+  release_command = "python -m alembic -c services/api/alembic.ini upgrade head"
+
 [env]
   PYTHONUNBUFFERED = "1"
   DROP_DB = "false"
