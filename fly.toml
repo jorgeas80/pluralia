@@ -1,5 +1,5 @@
 app = "pluralia-api"
-primary_region = "mad"
+primary_region = "cdg"
 
 [build]
   dockerfile = "services/api/Dockerfile"
