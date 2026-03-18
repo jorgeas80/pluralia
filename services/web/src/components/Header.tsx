@@ -1,4 +1,4 @@
-type View = "news" | "groups" | "sources";
+type View = "news" | "groups" | "sources" | "algorithm";
 
 interface HeaderProps {
   view: View;
@@ -27,6 +27,7 @@ export function Header({ view, onViewChange }: HeaderProps) {
           {tab("news", "Noticias")}
           {tab("groups", "Clusters")}
           {tab("sources", "Fuentes")}
+          {tab("algorithm", "Cómo funciona")}
         </nav>
       </div>
     </header>
