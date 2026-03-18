@@ -7,8 +7,9 @@ import { SourceFilter } from "./components/SourceFilter";
 import { ArticleCard } from "./components/ArticleCard";
 import { GroupCard } from "./components/GroupCard";
 import { SourceStatsView } from "./components/SourceStatsView";
+import { AlgorithmView } from "./components/AlgorithmView";
 
-type View = "news" | "groups" | "sources";
+type View = "news" | "groups" | "sources" | "algorithm";
 
 export function App() {
   const [view, setView] = useState<View>("news");
@@ -126,6 +127,8 @@ export function App() {
         {!loading && !error && view === "sources" && (
           <SourceStatsView stats={stats} />
         )}
+
+        {view === "algorithm" && <AlgorithmView />}
       </main>
     </div>
   );
