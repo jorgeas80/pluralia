@@ -2,7 +2,7 @@ name: News Ingest
 
 on:
   schedule:
-    - cron: "0 8,11,14,17,20,22 * * *"  # horas pico: 8h, 11h, 14h, 17h, 20h, 22h (UTC)
+    - cron: "0 8,18 * * *"  # 2 veces al día: 8h y 18h UTC
   workflow_dispatch: # también ejecutable manualmente desde GitHub Actions
 
 jobs:
