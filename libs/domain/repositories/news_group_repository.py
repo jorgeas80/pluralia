@@ -27,3 +27,8 @@ class NewsGroupRepository(ABC):
         """Finds all news groups."""
         raise NotImplementedError
 
+    @abstractmethod
+    async def find_recent(self, days: int = 1) -> list[NewsGroup]:
+        """Finds news groups created in the last N days."""
+        raise NotImplementedError
+
