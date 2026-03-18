@@ -1,367 +1,262 @@
-# Pluralia 📰
+# Pluralia
 
-**Pluralia** is a news aggregation API that collects information from multiple Spanish media sources, classifying them by political bias and grouping them by topics to provide a plural view of current events.
+**Pluralia** is a Spanish news aggregator that classifies articles by political bias, detects sensationalism using LLM analysis, and groups related stories from different sources.
 
-## 🎯 Features
+Live: **[pluralia.info](https://pluralia.info)**
 
-- **News aggregation**: Collects news from 10+ major Spanish media outlets
-- **Bias classification**: Categorizes sources according to their political orientation (left, center, right)
-- **Thematic grouping**: Groups similar news using title hashing
-- **REST API**: Endpoints to query news and metrics
-- **PostgreSQL database**: Persistent storage of articles and sources
-- **Docker**: Complete containerization for development and production
-- **Monorepo architecture**: Separated services following Domain-Driven Design
+---
 
-## 🏗️ Architecture
+## Features
 
-The project is structured as a **monorepo** following **Domain-Driven Design (DDD)** and **Clean Architecture** principles:
+- **News aggregation** — Collects articles from 10+ major Spanish outlets via RSS
+- **Bias classification** — Sources tagged as left / center / right
+- **Sensationalism detection** — Each article scored 0–1 by GPT-4o mini (see [Algorithm](#sensationalism-algorithm))
+- **Semantic grouping** — Similar stories across sources clustered using OpenAI embeddings
+- **Web frontend** — React SPA with color-coded badges, source filter, cluster view, and algorithm explanation
+- **REST API** — FastAPI with `/news` and `/groups` endpoints
+- **Automated ingest** — GitHub Actions cron runs twice daily (08:00 and 18:00 UTC)
 
-- **libs/domain**: Shared domain code (entities, value objects, repositories)
-- **services/api**: REST API service (FastAPI)
-- **services/ingest**: News ingestion service from RSS feeds
-- **services/web**: Web frontend (pending implementation)
+---
 
-### Technologies
+## Architecture
 
-- **FastAPI**: Modern and fast web framework for Python
-- **SQLModel**: ORM that combines SQLAlchemy with Pydantic
-- **PostgreSQL**: Relational database for persistence
-- **feedparser**: Library for parsing RSS/Atom feeds
-- **Docker Compose**: Service orchestration
-
-## 📁 Project Structure
+Monorepo following **Domain-Driven Design** and **Clean Architecture**:
 
 ```
 pluralia/
-├── libs/
-│   └── domain/                    # Shared domain code
-│       ├── entities/              # Domain entities (Source, Article, NewsGroup)
-│       ├── value_objects/         # Value Objects (Bias, TopicHash)
-│       ├── repositories/          # Repository interfaces
-│       └── errors/                # Domain exceptions
-├── services/
-│   ├── api/                       # REST API service
-│   │   ├── src/
-│   │   │   ├── domain/            # API-specific domain logic
-│   │   │   ├── application/       # Use cases
-│   │   │   └── infrastructure/    # Technical implementations
-│   │   │       ├── api/           # FastAPI controllers/routes
-│   │   │       ├── repositories/  # Repository implementations
-│   │   │       └── database/      # SQLModel models and DB configuration
-│   │   ├── Dockerfile
-│   │   └── requirements.txt
-│   ├── ingest/                    # Ingestion service
-│   │   ├── src/
-│   │   │   ├── domain/
-│   │   │   ├── application/       # Ingestion use cases
-│   │   │   └── infrastructure/
-│   │   │       ├── repositories/
-│   │   │       ├── services/      # Technical services (RSS parser)
-│   │   │       └── database/
-│   │   ├── Dockerfile
-│   │   └── requirements.txt
-│   └── web/                       # Frontend (pending)
-│       └── src/
-├── docker-compose.yml             # Orchestration of all services
-├── setup.py                       # Configuration for libs imports
-└── README.md                      # This file
+├── libs/domain/               # Shared domain (entities, value objects, repositories)
+├── services/api/              # FastAPI REST API
+├── services/ingest/           # RSS ingestion + LLM analysis
+├── services/web/              # React + Vite + Tailwind frontend
+├── tests/                     # Integration and unit tests
+├── docker-compose.yml
+├── Makefile
+└── fly.toml                   # Fly.io deploy config
 ```
 
-## 🚀 Installation and Local Development
+### Stack
+
+| Layer | Technology |
+|---|---|
+| Frontend | React 18, TypeScript, Vite, Tailwind CSS |
+| API | Python 3.11, FastAPI, Uvicorn |
+| ORM | SQLModel (SQLAlchemy + Pydantic) |
+| Database | PostgreSQL (Neon in production) |
+| Migrations | Alembic |
+| LLM | OpenAI GPT-4o mini |
+| Embeddings | OpenAI text-embedding-ada-002 |
+| Containerization | Docker, nginx |
+
+### Production infrastructure
+
+| Service | Platform |
+|---|---|
+| API | Fly.io (cdg region) |
+| Database | Neon (serverless Postgres) |
+| Frontend | Vercel |
+| Ingest | GitHub Actions cron |
+
+---
+
+## Local development
 
 ### Prerequisites
 
-- **Docker** and **Docker Compose**
-- **Python 3.11+** (for local development without Docker)
-- **PostgreSQL** (if running without Docker)
+- Docker + Docker Compose
+- `OPENAI_API_KEY` (for sensationalism analysis and embeddings)
 
-### Option 1: Development with Docker (Recommended)
+### Quickstart
 
-1. **Clone the repository**:
-   ```bash
-   git clone <repository-url>
-   cd pluralia
-   ```
+```bash
+git clone https://github.com/jorgeas80/pluralia.git
+cd pluralia
 
-2. **Start the services**:
-   ```bash
-   docker-compose up -d
-   ```
+# Start API + DB + Web
+make up
 
-3. **Verify everything works**:
-   ```bash
-   # Verify the API responds
-   curl http://localhost:8000/health
-   
-   # Verify the database is available
-   docker-compose logs db
-   ```
+# Run database migrations
+make migrate
 
-4. **Run the initial news ingestion**:
-   ```bash
-   docker-compose run --rm pluralia-ingest python -m services.ingest.src.main
-   ```
-
-5. **Access the API documentation**:
-   - Swagger UI: http://localhost:8000/docs
-   - ReDoc: http://localhost:8000/redoc
-
-### Option 2: Local Development (Without Docker)
-
-1. **Install dependencies**:
-   ```bash
-   # Install API dependencies
-   cd services/api
-   pip install -r requirements.txt
-   
-   # Install ingest dependencies
-   cd ../ingest
-   pip install -r requirements.txt
-   ```
-
-2. **Configure PostgreSQL**:
-   - Install PostgreSQL locally
-   - Create a database named `pluralia`
-   - Set environment variables:
-     ```bash
-     export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/pluralia"
-     export PYTHONPATH="${PYTHONPATH}:$(pwd)"
-     ```
-
-3. **Run the API application**:
-   ```bash
-   cd services/api
-   uvicorn services.api.src.main:app --reload --host 0.0.0.0 --port 8000
-   ```
-
-4. **Run the ingestion**:
-   ```bash
-   cd services/ingest
-   python -m services.ingest.src.main
-   ```
-
-## 📊 API Endpoints
-
-### `GET /health`
-Checks the API status.
-
-**Response**:
-```json
-{
-  "status": "ok"
-}
+# Run news ingestion (requires OPENAI_API_KEY)
+OPENAI_API_KEY=sk-... make ingest
 ```
 
-### `GET /news`
-Gets recent news from multiple sources.
+- API: http://localhost:8000
+- Web: http://localhost:3000
+- API docs: http://localhost:8000/docs
 
-**Parameters**:
-- `limit` (optional): Number of news items per source (default: 20)
+### Environment variables
 
-**Response**:
+Copy `.env.example` and fill in your values:
+
+```bash
+cp .env.example .env
+```
+
+| Variable | Description | Default |
+|---|---|---|
+| `DATABASE_URL` | PostgreSQL connection string | local Docker postgres |
+| `OPENAI_API_KEY` | OpenAI API key (required for ingest) | — |
+| `CORS_ORIGINS` | Comma-separated allowed origins | `*` |
+| `VITE_API_URL` | API URL for the web frontend | `http://localhost:8000` |
+
+### Makefile reference
+
+```bash
+make up               # Start all services (API + DB + Web)
+make down             # Stop all services
+make build            # Rebuild Docker images
+make migrate          # Run Alembic migrations (requires running API container)
+make migrate-remote   # Run migrations against external DB: make migrate-remote DATABASE_URL=...
+make ingest           # Run news ingestion
+make logs             # Tail all service logs
+make logs-api         # Tail API logs
+make logs-web         # Tail web logs
+make web-build        # Rebuild web image
+make test             # Run all tests
+make test-unit        # Run unit tests only
+make test-integration # Run integration tests only
+make test-coverage    # Run tests with HTML coverage report
+make shell-api        # Open shell in API container
+make shell-db         # Open PostgreSQL shell
+make clean-db         # Drop and recreate database (WARNING: deletes all data)
+```
+
+---
+
+## API endpoints
+
+### `GET /health`
+
+```json
+{ "status": "ok" }
+```
+
+### `GET /news?limit=20`
+
+Returns recent articles from all sources.
+
 ```json
 {
   "news": [
     {
       "id": "uuid",
-      "title": "News title",
-      "link": "https://example.com/news",
-      "description": "News description",
+      "title": "Titular de la noticia",
+      "link": "https://...",
+      "description": "Descripción breve",
       "published": "2024-01-01T12:00:00",
       "source": "El País",
-      "bias": "left"
+      "bias": "left",
+      "sensationalism_score": 0.42,
+      "sensationalism_explanation": "Contiene 2 adjetivos valorativos..."
     }
   ]
 }
 ```
 
-## 🔧 Useful Commands
+### `GET /groups?limit=50&min_articles=2`
 
-### Using Makefile
+Returns news groups (stories covered by multiple sources), sorted by coverage breadth.
 
-The project includes helper scripts to simplify common tasks:
-
-```bash
-make help          # Show all available commands
-make up            # Start all services
-make down          # Stop all services
-make clean-db      # Drop and recreate database (WARNING: deletes all data)
-make recreate-db   # Recreate database tables (drops existing tables)
-make ingest        # Run news ingestion
-make test          # Run all tests
-make logs-api      # View API logs
+```json
+{
+  "groups": [
+    {
+      "id": "uuid",
+      "created_at": "2024-01-01T12:00:00",
+      "articles": [ /* same structure as /news items */ ]
+    }
+  ]
+}
 ```
-
-### Docker Compose
-
-```bash
-# Start services (only API and DB, ingest does NOT start automatically)
-docker-compose up -d
-
-# View logs from all services
-docker-compose logs -f
-
-# View logs from a specific service
-docker-compose logs -f pluralia-api
-
-# Stop services
-docker-compose down
-
-# Rebuild images
-docker-compose build --no-cache
-
-# Run ingestion manually (runs, ingests news, and exits)
-docker-compose run --rm pluralia-ingest python -m services.ingest.src.main
-
-# Or using the profile (if you want to start it as a service)
-docker-compose --profile ingest up -d pluralia-ingest
-
-# Access the database
-docker-compose exec db psql -U postgres -d pluralia
-
-# Run tests
-docker-compose --profile test run --rm pluralia-test pytest
-
-# Run tests with coverage
-docker-compose --profile test run --rm pluralia-test pytest --cov=libs --cov=services --cov-report=html
-```
-
-### Schedule automatic ingestion
-
-The `ingest` service is configured with a `profile`, so it **does NOT start automatically** with `docker-compose up -d`. It only runs when explicitly invoked.
-
-**Option 1: Cron job (Linux/Mac)**
-
-Add this line to your crontab (`crontab -e`):
-
-```bash
-# Run ingestion every hour
-0 * * * * cd /full/path/to/pluralia && docker-compose run --rm pluralia-ingest python -m services.ingest.src.main >> /var/log/pluralia-ingest.log 2>&1
-
-# Run ingestion every 30 minutes
-*/30 * * * * cd /full/path/to/pluralia && docker-compose run --rm pluralia-ingest python -m services.ingest.src.main >> /var/log/pluralia-ingest.log 2>&1
-```
-
-**Option 2: Task Scheduler (Windows)**
-
-Create a scheduled task that runs:
-
-```powershell
-cd C:\path\to\pluralia
-docker-compose run --rm pluralia-ingest python -m services.ingest.src.main
-```
-
-**Option 3: Systemd timer (Linux)**
-
-Create `/etc/systemd/system/pluralia-ingest.service`:
-
-```ini
-[Unit]
-Description=Pluralia News Ingest
-After=docker.service
-Requires=docker.service
-
-[Service]
-Type=oneshot
-WorkingDirectory=/path/to/pluralia
-ExecStart=/usr/bin/docker-compose run --rm pluralia-ingest python -m services.ingest.src.main
-```
-
-And `/etc/systemd/system/pluralia-ingest.timer`:
-
-```ini
-[Unit]
-Description=Run Pluralia Ingest hourly
-
-[Timer]
-OnCalendar=hourly
-Persistent=true
-
-[Install]
-WantedBy=timers.target
-```
-
-Then enable the timer:
-```bash
-sudo systemctl enable pluralia-ingest.timer
-sudo systemctl start pluralia-ingest.timer
-```
-
-### Development
-
-```bash
-# Run news ingestion
-python -m services.ingest.src.main
-
-# Run tests (when implemented)
-pytest
-
-# Format code
-black services/ libs/
-
-# Linting
-flake8 services/ libs/
-```
-
-## 🗄️ Database
-
-### Main Models
-
-- **Source**: News sources with their political bias
-- **Article**: Individual articles
-- **NewsGroup**: Groups of related news by topic
-
-### Migrations
-
-The database is automatically initialized when running the application for the first time.
-
-## 🔄 Data Flow
-
-1. **Ingestion**: The `ingest` service parses RSS feeds from multiple sources
-2. **Classification**: Each source has an assigned political bias (left, center, right)
-3. **Grouping**: Articles are grouped by title similarity using SHA256 hashing
-4. **Storage**: Data is saved to PostgreSQL
-5. **API**: The `api` service exposes data for consumption through REST endpoints
-
-## 🏛️ Domain Architecture
-
-The project follows **Domain-Driven Design (DDD)**:
-
-- **Entities**: `Source`, `Article`, `NewsGroup` - Objects with unique identity
-- **Value Objects**: `Bias`, `TopicHash` - Immutable objects without identity
-- **Repositories**: Interfaces in the domain, implementations in infrastructure
-- **Use Cases**: Application logic orchestrating domain operations
-
-## 🛠️ Technologies Used
-
-- **Python 3.11**
-- **FastAPI** - Web framework
-- **SQLModel** - ORM and validation
-- **PostgreSQL** - Database
-- **feedparser** - RSS feed parsing
-- **Docker** - Containerization
-- **Uvicorn** - ASGI server
-
-## 📝 Development Notes
-
-- The project uses **SQLModel** which combines SQLAlchemy with Pydantic
-- RSS feeds are updated by running the ingestion service
-- News grouping uses SHA256 hashing of normalized titles
-- Domain code is in `libs/domain` and is shared between services
-- Each service has its own repository implementations in the infrastructure layer
-
-## 🤝 Contributing
-
-1. Fork the project
-2. Create a feature branch (`git checkout -b feature/new-feature`)
-3. Commit your changes (`git commit -m 'Add new feature'`)
-4. Push to the branch (`git push origin feature/new-feature`)
-5. Open a Pull Request
-
-## 📄 License
-
-This project is under the MIT License. See the `LICENSE` file for more details.
 
 ---
 
-**Developed with ❤️ to promote informational pluralism**
+## Sensationalism algorithm
+
+Each article is analyzed by **GPT-4o mini** (temperature 0) using its title and RSS description. The model applies a linguistic formula:
+
+### How it works
+
+1. **Assertion Units (H)** — count verifiable facts, data points, and direct quotes in the text.
+2. **Subjective adjectives (A)** — count evaluative or emotional adjectives (e.g. "brutal", "vergonzoso", "preocupante"). Neutral/technical adjectives (e.g. "pública", "anual") are excluded.
+3. **Formula:**
+
+```
+IS = A / (A + H)        (if A = 0 and H = 0, IS = 0)
+```
+
+The result is naturally bounded between 0 and 1. IS > 0.5 indicates sensationalist predominance.
+
+### Color scale
+
+| Score | Level | Color |
+|---|---|---|
+| null | No data | Grey |
+| 0.00 – 0.33 | Low | Green |
+| 0.34 – 0.66 | Medium | Amber |
+| 0.67 – 1.00 | High | Red |
+
+### Limitations
+
+- Analysis is based only on title + RSS description, not the full article.
+- The model may make errors on very short or ambiguous titles.
+- The index measures linguistic sensationalism, not factual accuracy or political bias.
+- Sources with a more direct writing style will systematically score lower.
+
+---
+
+## Data flow
+
+```
+GitHub Actions (cron 08:00 / 18:00 UTC)
+    │
+    ▼
+services/ingest
+    ├── Parse RSS feeds → extract articles
+    ├── Generate OpenAI embeddings → semantic grouping into NewsGroups
+    ├── Analyze sensationalism via GPT-4o mini → score + explanation
+    └── Persist to PostgreSQL (Neon)
+    │
+    ▼
+services/api  (Fly.io)
+    ├── GET /news   → returns articles with bias + sensationalism
+    └── GET /groups → returns clusters (embedding column excluded)
+    │
+    ▼
+services/web  (Vercel)
+    ├── Noticias tab    → article list with color-coded badges
+    ├── Clusters tab    → grouped stories by topic
+    ├── Fuentes tab     → per-source stats (avg score, bias, count)
+    └── Cómo funciona   → algorithm explanation
+```
+
+---
+
+## Domain architecture
+
+The project follows **Domain-Driven Design**:
+
+- **Entities**: `Source`, `Article`, `NewsGroup` — objects with unique identity
+- **Value Objects**: `Bias`, `TopicHash` — immutable, no identity
+- **Repositories**: interfaces in `libs/domain`, implementations in each service's infrastructure layer
+- **Use Cases**: application logic orchestrating domain operations (`GetNews`, `GetGroups`, `IngestNews`)
+
+---
+
+## Contributing
+
+1. Fork the project
+2. Create a feature branch: `git checkout -b feat/my-feature`
+3. Commit your changes
+4. Push and open a Pull Request against `main`
+
+---
+
+## License
+
+MIT — see `LICENSE`.
+
+---
+
+*Developed to promote informational pluralism in Spanish media.*
