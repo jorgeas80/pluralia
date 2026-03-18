@@ -38,7 +38,9 @@ class GetGroups:
         # Fetch group metadata for the groups that pass the filter
         qualifying_ids = [gid for gid, arts in groups_dict.items() if len(arts) >= min_articles]
         newsgroups = self._session.exec(
-            select(NewsGroupModel).where(NewsGroupModel.id.in_(qualifying_ids))
+            select(NewsGroupModel.id, NewsGroupModel.created_at).where(
+                NewsGroupModel.id.in_(qualifying_ids)
+            )
         ).all()
         newsgroup_map = {ng.id: ng for ng in newsgroups}
 
