@@ -87,8 +87,8 @@ class IngestNews:
 
     async def _find_or_create_group_by_similarity(self, title: str, embedding: list[float]) -> NewsGroup:
         """Finds a similar group by embedding similarity, or creates a new one."""
-        # Get all existing groups
-        existing_groups = await self._news_group_repository.find_all()
+        # Get groups from the last day only to limit DB transfer
+        existing_groups = await self._news_group_repository.find_recent(days=1)
 
         # Find the most similar group
         best_match = None
