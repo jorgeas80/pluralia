@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from uuid import UUID, uuid5, NAMESPACE_DNS
 from sqlmodel import Session, select
@@ -43,7 +43,7 @@ class SqlModelNewsGroupRepository(NewsGroupRepository):
 
     async def find_recent(self, days: int = 1) -> list[NewsGroup]:
         """Finds news groups created in the last N days."""
-        since = datetime.utcnow() - timedelta(days=days)
+        since = datetime.now(timezone.utc) - timedelta(days=days)
         results = self._session.exec(
             select(NewsGroupModel).where(NewsGroupModel.created_at >= since)
         ).all()
@@ -78,4 +78,3 @@ class SqlModelNewsGroupRepository(NewsGroupRepository):
             created_at=model.created_at,
             embedding=model.embedding,
         )
-

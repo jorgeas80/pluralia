@@ -21,6 +21,13 @@ jobs:
       - name: Install dependencies
         run: pip install -r services/ingest/requirements.txt
 
+      - name: Run database migrations
+        working-directory: services/api
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          PYTHONPATH: ${{ github.workspace }}
+        run: python -m alembic upgrade head
+
       - name: Run ingest
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}

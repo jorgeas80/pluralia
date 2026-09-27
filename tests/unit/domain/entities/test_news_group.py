@@ -1,5 +1,6 @@
 """Tests for NewsGroup entity."""
 import pytest
+from datetime import timezone
 from uuid import UUID
 from libs.domain.entities.news_group import NewsGroup
 from libs.domain.value_objects.topic_hash import TopicHash
@@ -30,7 +31,7 @@ def test_build_creates_news_group_with_existing_id(fake):
     topic_hash = TopicHash.from_title(fake.sentence())
     summary = fake.text()
 
-    group = NewsGroup.build(id=group_id, topic_hash=topic_hash, summary=summary, created_at=fake.date_time())
+    group = NewsGroup.build(id=group_id, topic_hash=topic_hash, summary=summary, created_at=fake.date_time(tzinfo=timezone.utc))
 
     assert group.id == group_id
     assert group.topic_hash == topic_hash
@@ -45,7 +46,7 @@ def test_invalid_id_raises_error(invalid_id, fake):
             id=invalid_id,
             topic_hash=topic_hash,
             summary=None,
-            created_at=fake.date_time(),
+            created_at=fake.date_time(tzinfo=timezone.utc),
         )
 
 
@@ -62,4 +63,3 @@ def test_news_group_is_immutable(fake):
     group = NewsGroupFactory.build()
     with pytest.raises(FrozenInstanceError):
         group.summary = "New Summary"
-

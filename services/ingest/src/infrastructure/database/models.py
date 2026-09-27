@@ -1,7 +1,8 @@
 from sqlmodel import SQLModel, Field, Column
 from sqlalchemy import String, ForeignKey, JSON
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
+from pydantic import AwareDatetime
 
 
 class SourceModel(SQLModel, table=True):
@@ -19,7 +20,7 @@ class NewsGroupModel(SQLModel, table=True):
     id: str = Field(sa_column=Column(String, primary_key=True))
     topic_hash: str
     summary: Optional[str] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: AwareDatetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     embedding: Optional[list[float]] = Field(default=None, sa_column=Column(JSON))
 
 
@@ -32,7 +33,7 @@ class ArticleModel(SQLModel, table=True):
     title: str
     description: Optional[str] = None
     link: str
-    published_at: Optional[datetime] = None
+    published_at: Optional[AwareDatetime] = None
     sensationalism_score: Optional[float] = None
     sensationalism_explanation: Optional[str] = None
     analysis_metadata: Optional[dict] = Field(default=None, sa_column=Column(JSON))
