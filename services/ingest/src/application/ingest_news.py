@@ -4,6 +4,7 @@ from uuid import UUID
 from libs.domain.entities.article import Article
 from libs.domain.entities.news_group import NewsGroup
 from libs.domain.entities.source import Source
+from libs.domain.news_policy import news_retention_cutoff
 from libs.domain.repositories.article_repository import ArticleRepository
 from libs.domain.repositories.news_group_repository import NewsGroupRepository
 from libs.domain.repositories.source_repository import SourceRepository
@@ -53,6 +54,10 @@ class IngestNews:
                 article = self._rss_parser.entry_to_article(entry, source.id)
             except UndatedArticleError as error:
                 print(f"⚠️ Skipping undated RSS entry: {error}")
+                continue
+
+            if article.published_at < news_retention_cutoff():
+                print(f"⚠️ Skipping expired RSS entry: {article.link}")
                 continue
 
             existing_article = await self._article_repository.find_by_link(article.link)
