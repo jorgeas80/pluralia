@@ -35,6 +35,12 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}
         run: python -m services.ingest.src.main
 
+      - name: Remove expired news
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          PYTHONPATH: ${{ github.workspace }}
+        run: python -m services.ingest.src.cleanup_expired_news
+
       - name: Generate static JSON
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}

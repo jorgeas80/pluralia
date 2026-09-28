@@ -13,6 +13,7 @@ from libs.domain.value_objects.topic_hash import TopicHash
 from dataclasses import replace
 from libs.domain.services.analysis_service import NewsAnalyzer
 from services.ingest.src.infrastructure.services.rss_parser import RSSParser
+from services.ingest.src.infrastructure.services.rss_parser import UndatedArticleError
 
 class IngestNews:
     """Use case for ingesting news from RSS feeds."""
@@ -48,7 +49,11 @@ class IngestNews:
         entries = self._rss_parser.parse_feed(source_url)
 
         for entry in entries[:limit]:
-            article = self._rss_parser.entry_to_article(entry, source.id)
+            try:
+                article = self._rss_parser.entry_to_article(entry, source.id)
+            except UndatedArticleError as error:
+                print(f"⚠️ Skipping undated RSS entry: {error}")
+                continue
 
             existing_article = await self._article_repository.find_by_link(article.link)
             if existing_article:

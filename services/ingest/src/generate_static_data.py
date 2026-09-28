@@ -1,8 +1,10 @@
 import json
 import os
+from datetime import datetime
 from pathlib import Path
 
 from sqlmodel import select
+from libs.domain.news_policy import news_retention_cutoff
 from services.ingest.src.infrastructure.database.db import get_session
 from services.ingest.src.infrastructure.database.models import (
     ArticleModel, NewsGroupModel, SourceModel,
@@ -13,10 +15,12 @@ GROUPS_LIMIT = 50
 MIN_ARTICLES = 2
 
 
-def generate_news(session) -> dict:
+def generate_news(session, now: datetime | None = None) -> dict:
+    cutoff = news_retention_cutoff(now)
     rows = session.exec(
         select(ArticleModel, SourceModel)
         .join(SourceModel, ArticleModel.source_id == SourceModel.id, isouter=True)
+        .where(ArticleModel.published_at >= cutoff)
         .order_by(ArticleModel.published_at.desc())
         .limit(NEWS_LIMIT)
     ).all()
@@ -36,11 +40,15 @@ def generate_news(session) -> dict:
     return {"news": news}
 
 
-def generate_groups(session) -> dict:
+def generate_groups(session, now: datetime | None = None) -> dict:
+    cutoff = news_retention_cutoff(now)
     rows = session.exec(
         select(ArticleModel, SourceModel)
         .join(SourceModel, ArticleModel.source_id == SourceModel.id, isouter=True)
-        .where(ArticleModel.group_id.is_not(None))
+        .where(
+            ArticleModel.group_id.is_not(None),
+            ArticleModel.published_at >= cutoff,
+        )
     ).all()
 
     groups_dict: dict[str, list[dict]] = {}
@@ -75,7 +83,14 @@ def generate_groups(session) -> dict:
         }
         for gid in qualifying_ids
     ]
-    output.sort(key=lambda g: len(g["articles"]), reverse=True)
+    output.sort(
+        key=lambda group: (
+            max(article["published"] for article in group["articles"]),
+            len(group["articles"]),
+            group["id"],
+        ),
+        reverse=True,
+    )
     return {"groups": output[:GROUPS_LIMIT]}
 
 

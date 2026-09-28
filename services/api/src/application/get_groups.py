@@ -1,5 +1,8 @@
+from datetime import datetime
+
 from sqlmodel import Session, select
 
+from libs.domain.news_policy import news_retention_cutoff
 from services.api.src.infrastructure.database.models import ArticleModel, NewsGroupModel, SourceModel
 
 
@@ -9,12 +12,21 @@ class GetGroups:
     def __init__(self, session: Session):
         self._session = session
 
-    async def execute(self, limit: int = 50, min_articles: int = 2) -> list[dict]:
-        """Returns news groups sorted by number of articles, most covered first."""
+    async def execute(
+        self,
+        limit: int = 50,
+        min_articles: int = 2,
+        now: datetime | None = None,
+    ) -> list[dict]:
+        """Returns recent groups, ordered by their newest article."""
+        cutoff = news_retention_cutoff(now)
         rows = self._session.exec(
             select(ArticleModel, SourceModel)
             .join(SourceModel, ArticleModel.source_id == SourceModel.id, isouter=True)
-            .where(ArticleModel.group_id.is_not(None))
+            .where(
+                ArticleModel.group_id.is_not(None),
+                ArticleModel.published_at >= cutoff,
+            )
         ).all()
 
         # Group articles by group_id
@@ -52,5 +64,12 @@ class GetGroups:
             }
             for gid in qualifying_ids
         ]
-        output.sort(key=lambda g: len(g["articles"]), reverse=True)
+        output.sort(
+            key=lambda group: (
+                max(article["published"] for article in group["articles"]),
+                len(group["articles"]),
+                group["id"],
+            ),
+            reverse=True,
+        )
         return output[:limit]
