@@ -3,9 +3,11 @@ from typing import Optional
 import feedparser
 
 from libs.domain.entities.article import Article
-from libs.domain.entities.source import Source
-from libs.domain.value_objects.topic_hash import TopicHash
 from uuid import UUID
+
+
+class UndatedArticleError(ValueError):
+    """Raised when an RSS entry has no usable publication timestamp."""
 
 
 class RSSParser:
@@ -23,15 +25,24 @@ class RSSParser:
         title = entry.title
         link = entry.link
         description = getattr(entry, "summary", None)
-        published = getattr(entry, "published", None)
-
-        published_at = None
-        if published:
-            try:
-                # feedparser has already converted the source offset to UTC.
-                published_at = datetime(*entry.published_parsed[:6], tzinfo=timezone.utc)
-            except Exception:
-                pass
+        if isinstance(entry, dict):
+            # FeedParserDict aliases a missing published_parsed to updated_parsed
+            # with a deprecation warning; read its stored keys directly instead.
+            published_parsed = dict.get(entry, "published_parsed")
+            updated_parsed = dict.get(entry, "updated_parsed")
+        else:
+            published_parsed = getattr(entry, "published_parsed", None)
+            updated_parsed = getattr(entry, "updated_parsed", None)
+        published_parsed = published_parsed or updated_parsed
+        if not published_parsed:
+            raise UndatedArticleError(f"RSS entry has no valid publication date: {link}")
+        try:
+            # feedparser has already converted the source offset to UTC.
+            published_at = datetime(*published_parsed[:6], tzinfo=timezone.utc)
+        except (TypeError, ValueError, IndexError) as error:
+            raise UndatedArticleError(
+                f"RSS entry has no valid publication date: {link}"
+            ) from error
 
         return Article.new(
             title=title,

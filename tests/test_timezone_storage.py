@@ -57,7 +57,7 @@ def isolated_database():
         admin.close()
 
 
-def test_migration_preserves_legacy_utc_instants_and_nulls(isolated_database):
+def test_migration_preserves_utc_instants_and_rejects_undated_articles(isolated_database):
     env, connection = isolated_database
     migrate(env, "upgrade", OLD_REVISION)
     dates = [datetime(2026, 1, 15, 8), datetime(2026, 7, 15, 8),
@@ -81,7 +81,9 @@ def test_migration_preserves_legacy_utc_instants_and_nulls(isolated_database):
         cursor.execute("SELECT created_at FROM newsgroup ORDER BY id")
         assert [row[0] for row in cursor] == [d.replace(tzinfo=timezone.utc) for d in dates]
         cursor.execute("SELECT published_at FROM article ORDER BY id")
-        assert [row[0] for row in cursor] == [d.replace(tzinfo=timezone.utc) for d in dates] + [None]
+        assert [row[0] for row in cursor] == [d.replace(tzinfo=timezone.utc) for d in dates]
+        cursor.execute("SELECT is_nullable FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'article' AND column_name = 'published_at'")
+        assert cursor.fetchone()[0] == "NO"
         cursor.execute("""SELECT data_type FROM information_schema.columns
             WHERE table_schema = current_schema()
             AND column_name IN ('created_at', 'published_at')""")
@@ -92,7 +94,7 @@ def test_migration_preserves_legacy_utc_instants_and_nulls(isolated_database):
         cursor.execute("SELECT created_at FROM newsgroup ORDER BY id")
         assert [row[0] for row in cursor] == dates
         cursor.execute("SELECT published_at FROM article ORDER BY id")
-        assert [row[0] for row in cursor] == dates + [None]
+        assert [row[0] for row in cursor] == dates
 
 
 @pytest.mark.parametrize("service", ["api", "ingest"])

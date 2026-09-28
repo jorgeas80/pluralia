@@ -4,6 +4,7 @@ from uuid import UUID
 from libs.domain.entities.article import Article
 from libs.domain.entities.news_group import NewsGroup
 from libs.domain.entities.source import Source
+from libs.domain.news_policy import news_retention_cutoff
 from libs.domain.repositories.article_repository import ArticleRepository
 from libs.domain.repositories.news_group_repository import NewsGroupRepository
 from libs.domain.repositories.source_repository import SourceRepository
@@ -13,6 +14,7 @@ from libs.domain.value_objects.topic_hash import TopicHash
 from dataclasses import replace
 from libs.domain.services.analysis_service import NewsAnalyzer
 from services.ingest.src.infrastructure.services.rss_parser import RSSParser
+from services.ingest.src.infrastructure.services.rss_parser import UndatedArticleError
 
 class IngestNews:
     """Use case for ingesting news from RSS feeds."""
@@ -48,7 +50,15 @@ class IngestNews:
         entries = self._rss_parser.parse_feed(source_url)
 
         for entry in entries[:limit]:
-            article = self._rss_parser.entry_to_article(entry, source.id)
+            try:
+                article = self._rss_parser.entry_to_article(entry, source.id)
+            except UndatedArticleError as error:
+                print(f"⚠️ Skipping undated RSS entry: {error}")
+                continue
+
+            if article.published_at < news_retention_cutoff():
+                print(f"⚠️ Skipping expired RSS entry: {article.link}")
+                continue
 
             existing_article = await self._article_repository.find_by_link(article.link)
             if existing_article:

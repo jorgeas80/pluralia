@@ -43,19 +43,20 @@ async def main(service):
             assert [str(g.id) for g in await group_repo.find_recent(days=1)] == [group_id]
 
         article_repo = repository.SqlModelArticleRepository(session)
+        published_at = datetime.now(timezone.utc).replace(microsecond=0)
         article = Article.new(
             "Story", "https://example.com/story", UUID(source_id), group_id=UUID(group_id),
-            published_at=datetime(2026, 9, 27, 10, tzinfo=timezone(timedelta(hours=2))),
+            published_at=published_at.astimezone(timezone(timedelta(hours=2))),
         )
         await article_repo.save(article)
         restored = await article_repo.find_by_id(article.id)
-        assert restored.published_at.isoformat() == "2026-09-27T08:00:00+00:00"
-        undated = Article.new(
-            "Undated story", "https://example.com/undated", UUID(source_id),
+        assert restored.published_at.isoformat() == published_at.isoformat()
+        second_article = Article.new(
+            "Second story", "https://example.com/second", UUID(source_id),
             group_id=UUID(group_id),
+            published_at=published_at - timedelta(hours=1),
         )
-        await article_repo.save(undated)
-        assert (await article_repo.find_by_id(undated.id)).published_at is None
+        await article_repo.save(second_article)
 
         if service == "api":
             from contextlib import contextmanager
@@ -80,12 +81,12 @@ async def main(service):
                 grouped = json.loads((Path(directory) / "services/web/public/data/groups.json").read_text())["groups"]
 
         news_by_id = {item["id"]: item for item in news}
-        assert news_by_id[str(article.id)]["published"] == "2026-09-27T08:00:00+00:00"
-        assert news_by_id[str(undated.id)]["published"] is None
+        assert news_by_id[str(article.id)]["published"] == published_at.isoformat()
         assert grouped[0]["created_at"].endswith("+00:00")
         group_articles = {item["id"]: item for item in grouped[0]["articles"]}
-        assert group_articles[str(article.id)]["published"] == "2026-09-27T08:00:00+00:00"
-        assert group_articles[str(undated.id)]["published"] is None
+        assert group_articles[str(article.id)]["published"] == published_at.isoformat(), (
+            group_articles[str(article.id)]["published"], published_at.isoformat()
+        )
     engine.dispose()
 
 
