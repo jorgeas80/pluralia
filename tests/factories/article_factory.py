@@ -1,7 +1,7 @@
 """Factory for Article entity."""
 from factory import Factory, Faker, SubFactory
 from uuid import UUID, uuid4
-from datetime import datetime
+from datetime import timezone
 from libs.domain.entities.article import Article
 from tests.factories.source_factory import SourceFactory
 
@@ -16,7 +16,6 @@ class ArticleFactory(Factory):
     title = Faker("sentence", nb_words=8)
     link = Faker("url")
     description = Faker("text", max_nb_chars=200)
-    published_at = Faker("date_time")
+    published_at = Faker("date_time", tzinfo=timezone.utc)
     source_id = Faker("uuid4", cast_to=None)
     group_id = None
-

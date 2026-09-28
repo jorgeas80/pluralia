@@ -1,6 +1,5 @@
 fastapi
 uvicorn[standard]
-sqlmodel
+sqlmodel==0.0.47
 psycopg2-binary
-alembic
-
+alembic==1.20.0

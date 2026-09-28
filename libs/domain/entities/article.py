@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID, uuid4
 
@@ -25,6 +25,10 @@ class Article:
         self._validate_link()
         self._validate_source_id()
         self._validate_sensationalism_score()
+        if self.published_at is not None:
+            if self.published_at.utcoffset() is None:
+                raise InvalidDomainError("Article published_at must have timezone information")
+            object.__setattr__(self, "published_at", self.published_at.astimezone(timezone.utc))
 
     @classmethod
     def new(

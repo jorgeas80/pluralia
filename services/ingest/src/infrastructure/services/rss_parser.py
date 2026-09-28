@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 import feedparser
 
@@ -28,7 +28,8 @@ class RSSParser:
         published_at = None
         if published:
             try:
-                published_at = datetime(*entry.published_parsed[:6])
+                # feedparser has already converted the source offset to UTC.
+                published_at = datetime(*entry.published_parsed[:6], tzinfo=timezone.utc)
             except Exception:
                 pass
 
@@ -39,4 +40,3 @@ class RSSParser:
             description=description,
             published_at=published_at,
         )
-

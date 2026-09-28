@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID, uuid4
 
@@ -12,12 +12,15 @@ class NewsGroup:
     id: UUID
     topic_hash: TopicHash
     summary: Optional[str] = None
-    created_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     embedding: Optional[list[float]] = field(default=None, compare=False, hash=False)
 
     def __post_init__(self) -> None:
         self._validate_id()
         self._validate_summary()
+        if self.created_at.utcoffset() is None:
+            raise InvalidDomainError("NewsGroup created_at must have timezone information")
+        object.__setattr__(self, "created_at", self.created_at.astimezone(timezone.utc))
 
     @classmethod
     def new(
@@ -33,7 +36,7 @@ class NewsGroup:
             id=id,
             topic_hash=topic_hash,
             summary=summary,
-            created_at=datetime.utcnow(),
+            created_at=datetime.now(timezone.utc),
             embedding=embedding,
         )
 
@@ -61,4 +64,3 @@ class NewsGroup:
     def _validate_summary(self) -> None:
         if self.summary and len(self.summary) > 2000:
             raise InvalidDomainError("NewsGroup summary must be less than 2000 characters")
-
