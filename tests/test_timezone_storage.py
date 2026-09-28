@@ -100,3 +100,9 @@ def test_service_roundtrip_and_json_keep_utc(isolated_database, service):
     env, _ = isolated_database
     migrate(env, "upgrade", "head")
     run(env, "tests/support/check_timezone_roundtrip.py", service)
+
+
+def test_api_replaces_a_stale_pooled_connection(isolated_database):
+    env, _ = isolated_database
+    migrate(env, "upgrade", "head")
+    run(env, "tests/support/check_stale_connection_recovery.py")

@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from services.api.src.infrastructure.database.models import SourceModel, ArticleModel, NewsGroupModel
 
 DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/pluralia")
-engine = create_engine(DATABASE_URL, echo=True)
+engine = create_engine(DATABASE_URL, echo=True, pool_pre_ping=True)
 
 
 def init_db():
@@ -24,4 +24,3 @@ def get_session():
     """Get a database session context manager."""
     with Session(engine) as session:
         yield session
-
